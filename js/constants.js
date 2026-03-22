@@ -173,7 +173,7 @@ const DAY_START_HOUR = 6;
 const BASE_PASSENGER_SPAWN_INTERVAL = 2500; // ms
 const MAX_PASSENGERS = 25;
 const MAX_AI_TAXIS = 4;
-const MAX_NPC_CARS = 20;
+const MAX_NPC_CARS = 10;
 
 // Fatigue
 const MAX_FATIGUE = 100;

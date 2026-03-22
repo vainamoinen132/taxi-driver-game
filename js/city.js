@@ -322,6 +322,44 @@ class City {
         return tileToPixel(tile.col, tile.row);
     }
 
+    getRandomSidewalkPosition() {
+        // Try to find a sidewalk tile (adjacent to road but not on it)
+        for (let attempt = 0; attempt < 60; attempt++) {
+            const roadTile = randChoice(this.roadTiles);
+            const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+            const shuffled = dirs.sort(() => Math.random() - 0.5);
+            for (const [dr, dc] of shuffled) {
+                const r = roadTile.row + dr;
+                const c = roadTile.col + dc;
+                if (r >= 0 && r < MAP_ROWS && c >= 0 && c < MAP_COLS) {
+                    if (this.tiles[r][c] === TILE.SIDEWALK) {
+                        return tileToPixel(c, r);
+                    }
+                }
+            }
+        }
+        // Fallback to road if no sidewalk found
+        return this.getRandomRoadPosition();
+    }
+
+    getSidewalkNearBuilding(building) {
+        // Find a sidewalk tile near a building
+        for (let radius = 1; radius < 6; radius++) {
+            for (let dr = -radius; dr <= radius; dr++) {
+                for (let dc = -radius; dc <= radius; dc++) {
+                    const r = building.row + dr;
+                    const c = building.col + dc;
+                    if (r >= 0 && r < MAP_ROWS && c >= 0 && c < MAP_COLS) {
+                        if (this.tiles[r][c] === TILE.SIDEWALK) {
+                            return tileToPixel(c, r);
+                        }
+                    }
+                }
+            }
+        }
+        return this.getRoadNearBuilding(building);
+    }
+
     getBuildingsOfType(type) {
         return this.buildings.filter(b => b.type === type);
     }

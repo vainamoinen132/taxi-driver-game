@@ -94,7 +94,7 @@ class Renderer {
 
         // Draw destination marker if has passenger
         if (taxi.hasPassenger && taxi.passenger) {
-            this._drawDestinationMarker(ctx, cam, taxi.passenger);
+            this._drawDestinationMarker(ctx, cam, taxi.passenger, taxi);
         }
 
         // Draw app order pickup marker
@@ -423,7 +423,7 @@ class Renderer {
         }
     }
 
-    _drawDestinationMarker(ctx, cam, passenger) {
+    _drawDestinationMarker(ctx, cam, passenger, taxi) {
         const sx = passenger.destX - cam.x;
         const sy = passenger.destY - cam.y;
 
@@ -458,8 +458,8 @@ class Renderer {
         ctx.strokeText(label, sx, sy - pulse - 22);
         ctx.fillText(label, sx, sy - pulse - 22);
 
-        // Distance indicator
-        const distTiles = dist(passenger.x, passenger.y, passenger.destX, passenger.destY) / TILE_SIZE;
+        // Distance indicator (use taxi position, not passenger spawn point)
+        const distTiles = taxi ? dist(taxi.x, taxi.y, passenger.destX, passenger.destY) / TILE_SIZE : 0;
         ctx.font = '10px sans-serif';
         ctx.fillStyle = '#fff';
         ctx.strokeText(`${distTiles.toFixed(0)} blocks`, sx, sy + pulse + 14);

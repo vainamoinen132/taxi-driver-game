@@ -471,6 +471,48 @@ body {
     padding: 16px;
 }
 
+/* Location Picker */
+#loc-picker {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 320px;
+    background: rgba(10, 10, 30, 0.95);
+    border: 2px solid #f5c518;
+    border-radius: 12px;
+    padding: 16px;
+    z-index: 25;
+    animation: fadeIn 0.2s ease;
+    box-shadow: 0 0 30px rgba(245, 197, 24, 0.2);
+}
+#loc-picker-header {
+    font-size: 1rem;
+    font-weight: bold;
+    color: #f5c518;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #f5c51844;
+}
+#loc-picker-header small {
+    color: #888;
+    font-weight: normal;
+    font-size: 0.75rem;
+}
+.loc-item {
+    background: rgba(245, 197, 24, 0.08);
+    border: 1px solid #f5c51833;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 6px;
+    font-size: 0.9rem;
+    color: #ccc;
+    cursor: default;
+}
+.loc-item b {
+    color: #f5c518;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

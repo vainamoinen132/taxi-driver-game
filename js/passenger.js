@@ -123,10 +123,10 @@ class PassengerManager {
         let dest;
 
         if (nearBuilding) {
-            spawnPos = this.city.getRoadNearBuilding(nearBuilding);
+            spawnPos = this.city.getSidewalkNearBuilding(nearBuilding);
             dest = this.city.getRandomDestinationBuilding([nearBuilding.type]);
         } else {
-            spawnPos = this.city.getRandomRoadPosition();
+            spawnPos = this.city.getRandomSidewalkPosition();
             dest = this.city.getRandomDestinationBuilding();
         }
 
