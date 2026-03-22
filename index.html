@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taxi Driver - City Hustle</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Main Menu Screen -->
+    <div id="main-menu" class="screen active">
+        <div class="menu-container">
+            <h1 class="game-title">🚕 TAXI DRIVER</h1>
+            <h2 class="game-subtitle">City Hustle</h2>
+            <div class="menu-buttons">
+                <button id="btn-new-game" class="menu-btn primary">New Game</button>
+                <button id="btn-how-to-play" class="menu-btn">How to Play</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- How to Play Screen -->
+    <div id="how-to-play" class="screen">
+        <div class="info-container">
+            <h2>How to Play</h2>
+            <div class="info-content">
+                <div class="info-section">
+                    <h3>🎮 Controls</h3>
+                    <p><b>W/S</b> - Accelerate / Brake &nbsp; <b>A/D</b> - Steer</p>
+                    <p><b>SPACE</b> - Pick up / Drop off passenger</p>
+                    <p><b>E</b> - Interact (gas station, mechanic, home)</p>
+                    <p><b>F</b> - Open ride-hailing app (accept orders)</p>
+                    <p><b>1</b> - Navigate to Home &nbsp; <b>2</b> - Navigate to Gas Station</p>
+                    <p><b>3</b> - Navigate to Mechanic &nbsp; <b>0</b> - Clear navigation</p>
+                    <p><b>H</b> - Horn &nbsp; <b>M</b> - Minimap &nbsp; <b>N</b> - Sound</p>
+                    <p><b>T</b> - Emergency tow &nbsp; <b>ESC</b> - Pause</p>
+                </div>
+                <div class="info-section">
+                    <h3>🚕 Gameplay</h3>
+                    <p>Drive around the city, pick up passengers (marked with 🧍), and deliver them to their destinations (marked with 📍).</p>
+                    <p>Earn money for each fare. Keep your fuel topped up at ⛽ gas stations and your car in shape at 🔧 mechanics.</p>
+                </div>
+                <div class="info-section">
+                    <h3>⚠️ Watch Out For</h3>
+                    <p>Speed cameras, rival taxis, thieves disguised as passengers, and random accidents! Keep your car maintained as mileage adds up.</p>
+                </div>
+                <div class="info-section">
+                    <h3>🏆 Goal</h3>
+                    <p>Earn as much money as possible! Upgrade your taxi, survive the city, and become the ultimate taxi driver.</p>
+                </div>
+            </div>
+            <button id="btn-back-menu" class="menu-btn">Back to Menu</button>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="screen">
+        <canvas id="game-canvas"></canvas>
+
+        <!-- HUD -->
+        <div id="hud">
+            <div id="hud-top-left">
+                <div class="hud-item" id="hud-money">💰 $<span>500</span></div>
+                <div class="hud-item" id="hud-fuel">
+                    <span class="hud-label">⛽ Fuel</span>
+                    <div class="hud-bar"><div class="hud-bar-fill fuel-bar"></div></div>
+                </div>
+                <div class="hud-item" id="hud-health">
+                    <span class="hud-label">🔧 Car</span>
+                    <div class="hud-bar"><div class="hud-bar-fill health-bar"></div></div>
+                </div>
+                <div class="hud-item" id="hud-fatigue">
+                    <span class="hud-label">😴 Energy</span>
+                    <div class="hud-bar"><div class="hud-bar-fill fatigue-bar"></div></div>
+                </div>
+                <div class="hud-item" id="hud-speed">🏎️ <span>0</span> km/h</div>
+                <div class="hud-item" id="hud-km">📏 <span>0</span> km</div>
+            </div>
+            <div id="hud-top-right">
+                <div id="hud-time">🕐 <span>6:00 AM</span></div>
+                <div id="hud-day">📅 Day <span>1</span></div>
+            </div>
+            <div id="hud-bottom">
+                <div id="hud-passenger-info" class="hidden">
+                    <span id="passenger-status">Looking for passengers...</span>
+                </div>
+                <div id="hud-notification" class="hidden"></div>
+            </div>
+        </div>
+
+        <!-- Minimap -->
+        <canvas id="minimap"></canvas>
+
+        <!-- Pause Menu -->
+        <div id="pause-menu" class="overlay hidden">
+            <div class="overlay-content">
+                <h2>PAUSED</h2>
+                <button id="btn-resume" class="menu-btn primary">Resume</button>
+                <button id="btn-upgrades" class="menu-btn">🔧 Garage & Upgrades</button>
+                <button id="btn-stats" class="menu-btn">📊 Statistics</button>
+                <button id="btn-quit" class="menu-btn danger">Quit to Menu</button>
+            </div>
+        </div>
+
+        <!-- Upgrade/Garage Menu -->
+        <div id="garage-menu" class="overlay hidden">
+            <div class="overlay-content wide">
+                <h2>🔧 Garage & Upgrades</h2>
+                <div id="garage-grid"></div>
+                <button id="btn-close-garage" class="menu-btn">Close</button>
+            </div>
+        </div>
+
+        <!-- Stats Screen -->
+        <div id="stats-menu" class="overlay hidden">
+            <div class="overlay-content">
+                <h2>📊 Statistics</h2>
+                <div id="stats-content"></div>
+                <button id="btn-close-stats" class="menu-btn">Close</button>
+            </div>
+        </div>
+
+        <!-- Interaction Prompt -->
+        <div id="interaction-prompt" class="hidden">
+            <span id="interaction-text"></span>
+        </div>
+
+        <!-- Event Banner -->
+        <div id="event-banner" class="hidden">
+            <span id="event-text"></span>
+        </div>
+
+        <!-- Phone Panel (App Orders) -->
+        <div id="phone-panel" class="hidden">
+            <div id="phone-header">📱 Ride Orders <small>(F to close)</small></div>
+            <div id="phone-orders"></div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/audio.js"></script>
+    <script src="js/constants.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/city.js"></script>
+    <script src="js/camera.js"></script>
+    <script src="js/taxi.js"></script>
+    <script src="js/ai-taxi.js"></script>
+    <script src="js/passenger.js"></script>
+    <script src="js/events.js"></script>
+    <script src="js/traffic.js"></script>
+    <script src="js/app-orders.js"></script>
+    <script src="js/hazards.js"></script>
+    <script src="js/hud.js"></script>
+    <script src="js/renderer.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

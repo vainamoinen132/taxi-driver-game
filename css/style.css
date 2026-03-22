@@ -1,0 +1,477 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #1a1a2e;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    color: #fff;
+}
+
+.screen {
+    display: none;
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+}
+.screen.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Main Menu */
+.menu-container {
+    text-align: center;
+    animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.game-title {
+    font-size: 4rem;
+    color: #f5c518;
+    text-shadow: 3px 3px 0 #000, 0 0 20px rgba(245,197,24,0.3);
+    margin-bottom: 0.2em;
+    letter-spacing: 4px;
+}
+.game-subtitle {
+    font-size: 1.8rem;
+    color: #aaa;
+    font-weight: 300;
+    margin-bottom: 2em;
+}
+
+.menu-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+}
+
+.menu-btn {
+    background: #2a2a4a;
+    color: #fff;
+    border: 2px solid #444;
+    padding: 14px 40px;
+    font-size: 1.1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 240px;
+    font-family: inherit;
+}
+.menu-btn:hover {
+    background: #3a3a5a;
+    border-color: #f5c518;
+    transform: scale(1.03);
+}
+.menu-btn.primary {
+    background: #f5c518;
+    color: #1a1a2e;
+    border-color: #f5c518;
+    font-weight: bold;
+}
+.menu-btn.primary:hover {
+    background: #ffd84d;
+}
+.menu-btn.danger {
+    border-color: #e74c3c;
+    color: #e74c3c;
+}
+.menu-btn.danger:hover {
+    background: #e74c3c;
+    color: #fff;
+}
+
+/* Info / How to Play */
+.info-container {
+    max-width: 600px;
+    text-align: left;
+    animation: fadeIn 0.3s ease;
+}
+.info-container h2 {
+    text-align: center;
+    font-size: 2rem;
+    color: #f5c518;
+    margin-bottom: 1em;
+}
+.info-content {
+    max-height: 60vh;
+    overflow-y: auto;
+    margin-bottom: 1.5em;
+    padding-right: 10px;
+}
+.info-section {
+    margin-bottom: 1.2em;
+}
+.info-section h3 {
+    color: #f5c518;
+    margin-bottom: 0.4em;
+    font-size: 1.1rem;
+}
+.info-section p {
+    color: #ccc;
+    line-height: 1.6;
+    margin-bottom: 0.3em;
+}
+
+/* Game Screen */
+#game-screen {
+    display: none;
+    position: relative;
+}
+#game-screen.active {
+    display: block;
+}
+
+#game-canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    background: #2d5a2d;
+}
+
+/* HUD */
+#hud {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 10;
+}
+
+#hud-top-left {
+    position: absolute;
+    top: 15px; left: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.hud-item {
+    background: rgba(0,0,0,0.7);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    backdrop-filter: blur(4px);
+    min-width: 180px;
+}
+
+.hud-label {
+    min-width: 65px;
+}
+
+.hud-bar {
+    flex: 1;
+    height: 12px;
+    background: #333;
+    border-radius: 6px;
+    overflow: hidden;
+}
+.hud-bar-fill {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.3s ease;
+}
+.fuel-bar {
+    background: linear-gradient(90deg, #e74c3c, #f39c12, #2ecc71);
+    width: 100%;
+}
+.health-bar {
+    background: linear-gradient(90deg, #e74c3c, #3498db, #2ecc71);
+    width: 100%;
+}
+
+#hud-top-right {
+    position: absolute;
+    top: 15px; right: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-end;
+}
+#hud-top-right > div {
+    background: rgba(0,0,0,0.7);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    backdrop-filter: blur(4px);
+}
+
+#hud-bottom {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+#hud-passenger-info {
+    background: rgba(0,0,0,0.8);
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 1rem;
+    border: 1px solid #f5c518;
+    max-width: 500px;
+    text-align: center;
+}
+
+#hud-notification {
+    background: rgba(231, 76, 60, 0.9);
+    padding: 8px 20px;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    animation: notifPulse 0.5s ease;
+}
+@keyframes notifPulse {
+    0% { transform: scale(0.8); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Minimap */
+#minimap {
+    position: absolute;
+    bottom: 15px;
+    right: 15px;
+    width: 200px;
+    height: 200px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-radius: 8px;
+    background: rgba(0,0,0,0.6);
+    z-index: 10;
+}
+#minimap.large {
+    width: 350px;
+    height: 350px;
+}
+
+/* Overlays */
+.overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    animation: fadeIn 0.2s ease;
+}
+.overlay-content {
+    background: #1e1e3a;
+    padding: 30px 40px;
+    border-radius: 12px;
+    border: 1px solid #444;
+    text-align: center;
+    max-height: 80vh;
+    overflow-y: auto;
+    min-width: 320px;
+}
+.overlay-content.wide {
+    min-width: 600px;
+    max-width: 700px;
+}
+.overlay-content h2 {
+    color: #f5c518;
+    margin-bottom: 1em;
+    font-size: 1.6rem;
+}
+.overlay-content .menu-btn {
+    pointer-events: all;
+    margin-top: 8px;
+}
+
+/* Garage Grid */
+#garage-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+    text-align: left;
+}
+.garage-item {
+    background: #2a2a4a;
+    padding: 14px;
+    border-radius: 8px;
+    border: 1px solid #444;
+}
+.garage-item h4 {
+    color: #f5c518;
+    margin-bottom: 4px;
+}
+.garage-item p {
+    color: #aaa;
+    font-size: 0.85rem;
+    margin-bottom: 8px;
+}
+.garage-item .upgrade-btn {
+    background: #f5c518;
+    color: #1a1a2e;
+    border: none;
+    padding: 6px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 0.85rem;
+    pointer-events: all;
+}
+.garage-item .upgrade-btn:hover {
+    background: #ffd84d;
+}
+.garage-item .upgrade-btn:disabled {
+    background: #555;
+    color: #888;
+    cursor: not-allowed;
+}
+
+/* Stats */
+#stats-content {
+    text-align: left;
+    margin-bottom: 16px;
+}
+#stats-content .stat-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid #333;
+    color: #ccc;
+}
+#stats-content .stat-row span:last-child {
+    color: #f5c518;
+    font-weight: bold;
+}
+
+/* Interaction prompt */
+#interaction-prompt {
+    position: absolute;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.85);
+    padding: 10px 24px;
+    border-radius: 8px;
+    border: 1px solid #2ecc71;
+    color: #2ecc71;
+    font-size: 1rem;
+    z-index: 15;
+    animation: fadeIn 0.2s ease;
+}
+
+/* Event banner */
+#event-banner {
+    position: absolute;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, rgba(245,197,24,0.95), rgba(231,76,60,0.95));
+    padding: 12px 30px;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: #1a1a2e;
+    z-index: 15;
+    animation: bannerSlide 0.4s ease;
+}
+@keyframes bannerSlide {
+    from { transform: translateX(-50%) translateY(-30px); opacity: 0; }
+    to { transform: translateX(-50%) translateY(0); opacity: 1; }
+}
+
+/* Fatigue / Energy bar */
+.fatigue-bar {
+    background: linear-gradient(90deg, #f39c12, #2ecc71);
+    width: 100%;
+}
+
+/* Phone Panel */
+#phone-panel {
+    position: absolute;
+    top: 50%;
+    right: 230px;
+    transform: translateY(-50%);
+    width: 260px;
+    background: rgba(15, 15, 35, 0.95);
+    border: 2px solid #3498db;
+    border-radius: 16px;
+    padding: 16px;
+    z-index: 20;
+    animation: phoneSlide 0.25s ease;
+    box-shadow: 0 0 20px rgba(52, 152, 219, 0.3);
+}
+@keyframes phoneSlide {
+    from { transform: translateY(-50%) translateX(30px); opacity: 0; }
+    to { transform: translateY(-50%) translateX(0); opacity: 1; }
+}
+#phone-header {
+    font-size: 1rem;
+    font-weight: bold;
+    color: #3498db;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #3498db44;
+}
+#phone-header small {
+    color: #888;
+    font-weight: normal;
+    font-size: 0.75rem;
+}
+#phone-orders {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+.phone-order {
+    background: rgba(52, 152, 219, 0.1);
+    border: 1px solid #3498db44;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 0.85rem;
+    color: #ccc;
+    line-height: 1.5;
+}
+.phone-order.accepted {
+    border-color: #2ecc71;
+    background: rgba(46, 204, 113, 0.1);
+}
+.phone-order b {
+    color: #fff;
+}
+.phone-order small {
+    color: #888;
+}
+.phone-timer {
+    color: #f39c12;
+    font-size: 0.8rem;
+}
+.phone-empty {
+    color: #888;
+    font-size: 0.9rem;
+    text-align: center;
+    padding: 16px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
