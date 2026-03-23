@@ -26,19 +26,27 @@ class Passenger {
         this.type = this._rollType();
         this.name = this._generateName();
 
+        // VIP status
+        this.isVIP = this.type === 'vip';
+
+        // Luggage
+        this.hasLuggage = !this.isVIP && Math.random() < LUGGAGE_CHANCE;
+
         // Fare calculation
         const tileDist = dist(x, y, this.destX, this.destY) / TILE_SIZE;
         this.baseFare = Math.max(5, tileDist * BASE_FARE_PER_TILE);
+        if (this.isVIP) this.baseFare *= VIP_FARE_MULTIPLIER;
 
         // Visual
-        this.emoji = this.type === 'thief' ? '🧍' : '🧍'; // all look the same
-        this.color = randChoice(['#FFD700', '#FF6B6B', '#6BCB77', '#4ECDC4', '#A78BFA', '#F472B6']);
+        this.emoji = this.isVIP ? '🤵' : this.hasLuggage ? '�' : '🧍';
+        this.color = this.isVIP ? '#FFD700' : randChoice(['#FFD700', '#FF6B6B', '#6BCB77', '#4ECDC4', '#A78BFA', '#F472B6']);
     }
 
     _rollType() {
         const r = Math.random();
-        if (r < 0.05) return 'thief';       // 5% thief
-        if (r < 0.12) return 'troublemaker'; // 7% refuses to pay
+        if (r < 0.03) return 'thief';       // 3% thief
+        if (r < 0.08) return 'troublemaker'; // 5% refuses to pay
+        if (r < 0.08 + VIP_CHANCE) return 'vip'; // 8% VIP
         return 'normal';
     }
 
@@ -72,23 +80,35 @@ class Passenger {
                this.destination.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     }
 
-    calculateFare(fareBonus) {
-        let fare = this.baseFare * fareBonus;
+    calculateFare(fareBonus, fareMultiplier, rideDamage) {
+        let fare = this.baseFare * fareBonus * (fareMultiplier || 1.0);
 
         if (this.type === 'troublemaker') {
-            // Refuses to pay or pays very little
             if (Math.random() < 0.6) {
-                return { fare: 0, tip: 0, message: `${this.name} refused to pay!` };
+                return { fare: 0, tip: 0, stars: 1, message: `${this.name} refused to pay!` };
             }
             fare *= 0.3;
         }
 
+        // Luggage tip bonus
+        let tipMult = 1.0;
+        if (this.hasLuggage) tipMult *= LUGGAGE_TIP_BONUS;
+
         let tip = 0;
-        if (Math.random() < TIP_CHANCE && this.type === 'normal') {
-            tip = rand(TIP_RANGE[0], TIP_RANGE[1]);
+        const tipChance = this.isVIP ? 0.8 : TIP_CHANCE;
+        if (Math.random() < tipChance && this.type !== 'troublemaker') {
+            tip = rand(TIP_RANGE[0], TIP_RANGE[1]) * tipMult;
+            if (this.isVIP) tip *= 2;
         }
 
-        return { fare: Math.round(fare), tip: Math.round(tip), message: null };
+        // Calculate star rating: 5 stars base, lose stars for damage, slow service
+        let stars = 5;
+        if ((rideDamage || 0) > 5) stars -= 1;
+        if ((rideDamage || 0) > 15) stars -= 1;
+        if (this.isVIP && (rideDamage || 0) > 3) stars -= 1;
+        stars = clamp(stars, 1, 5);
+
+        return { fare: Math.round(fare), tip: Math.round(tip), stars, message: null };
     }
 }
 

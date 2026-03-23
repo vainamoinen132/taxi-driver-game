@@ -24,7 +24,7 @@ class HUD {
         this.eventBannerTimer = 0;
     }
 
-    update(taxi, gameTime, hazardManager, eventManager, appOrderMgr) {
+    update(taxi, gameTime, hazardManager, eventManager, appOrderMgr, weather) {
         // Money
         this.moneyEl.textContent = Math.floor(taxi.money).toLocaleString();
 
@@ -70,10 +70,16 @@ class HUD {
         this.dayEl.textContent = taxi.day;
 
         // Passenger info
-        if (taxi.hasPassenger && taxi.passenger) {
+        if (taxi.loadingLuggage) {
+            this.passengerInfo.classList.remove('hidden');
+            this.passengerStatus.textContent = '🧳 Loading luggage...';
+        } else if (taxi.hasPassenger && taxi.passenger) {
             this.passengerInfo.classList.remove('hidden');
             const destName = taxi.passenger.getDestinationName();
-            this.passengerStatus.textContent = `🧑 ${taxi.passenger.name} → ${destName}`;
+            let pText = `🧑 ${taxi.passenger.name} → ${destName}`;
+            if (taxi.passenger.isVIP) pText = `⭐ VIP: ${taxi.passenger.name} → ${destName}`;
+            if (taxi.passenger.hasLuggage) pText += ' 🧳';
+            this.passengerStatus.textContent = pText;
         } else if (appOrderMgr && appOrderMgr.acceptedOrder && !appOrderMgr.acceptedOrder.pickedUp) {
             this.passengerInfo.classList.remove('hidden');
             const o = appOrderMgr.acceptedOrder;
@@ -107,9 +113,12 @@ class HUD {
         if (interBuilding && Math.abs(taxi.speed) < 20) {
             this.interactionPrompt.classList.remove('hidden');
             if (interBuilding.type === BUILDING_TYPE.GAS_STATION) {
-                this.interactionText.textContent = '⛽ Press E to Refuel';
+                const price = interBuilding.fuelPrice ? `$${interBuilding.fuelPrice.toFixed(2)}/L` : '';
+                this.interactionText.textContent = `⛽ Press E to Refuel ${price}`;
             } else if (interBuilding.type === BUILDING_TYPE.MECHANIC) {
-                this.interactionText.textContent = '🔧 Press E to Repair';
+                let mechText = '🔧 Press E to Repair';
+                if (taxi.tireHealth < 80 || taxi.tireBlown) mechText += ' | Also replaces tires';
+                this.interactionText.textContent = mechText;
             } else if (interBuilding.type === BUILDING_TYPE.HOME) {
                 this.interactionText.textContent = '🏡 Press E to Rest at Home';
             }

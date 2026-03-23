@@ -56,6 +56,24 @@ class Taxi {
         // Navigation waypoint (for showing direction to a building)
         this.navTarget = null; // { x, y, label, icon }
 
+        // Tire system
+        this.tireHealth = TIRE_MAX_HEALTH;
+        this.tireBlown = false;
+        this.tirePullDir = 0; // random pull direction when blown
+
+        // Star rating
+        this.rating = RATING_INITIAL;
+        this.ratingHistory = []; // last N fare ratings
+        this.rideDamageTaken = 0; // damage during current ride
+        this.rideStartTime = 0;
+
+        // Visual damage state (0=clean, 1=scratched, 2=dented, 3=wrecked)
+        this.damageVisual = 0;
+
+        // Luggage loading
+        this.loadingLuggage = false;
+        this.luggageTimer = 0;
+
         // Visual effects
         this.flashTimer = 0;
         this.flashColor = null;
@@ -130,12 +148,20 @@ class Taxi {
 
         // Steering (only when moving)
         const steerFactor = clamp(Math.abs(this.speed) / 80, 0, 1);
-        const turnRate = TURN_SPEED * this.grip * steerFactor * fatiguePenalty * dt;
+        const gripMod = this.weatherGripMod || 1.0;
+        const tireGripMod = this.tireBlown ? 0.5 : clamp(this.tireHealth / 50, 0.6, 1.0);
+        const turnRate = TURN_SPEED * this.grip * gripMod * tireGripMod * steerFactor * fatiguePenalty * dt;
         if (this.keys.a) {
             this.angle -= turnRate;
         }
         if (this.keys.d) {
             this.angle += turnRate;
+        }
+
+        // Tire blowout pull
+        if (this.tireBlown && Math.abs(this.speed) > 10) {
+            this.angle += this.tirePullDir * TIRE_BLOWOUT_PULL * dt;
+            this.speed *= 0.995; // gradual slowdown
         }
 
         this._applyMovement(dt, city);
@@ -149,6 +175,15 @@ class Taxi {
         const kmMoved = moved / TILE_SIZE * 0.05;
         this.totalKm += kmMoved;
 
+        // Tire wear
+        const tireWearMult = (this.weatherRainIntensity || 0) > 0.2 ? TIRE_RAIN_WEAR_MULT : 1.0;
+        this.tireHealth -= moved * TIRE_WEAR_RATE * tireWearMult;
+        this.tireHealth = Math.max(0, this.tireHealth);
+        if (this.tireHealth <= 0 && !this.tireBlown) {
+            this.tireBlown = true;
+            this.tirePullDir = Math.random() < 0.5 ? -1 : 1;
+        }
+
         // Display speed (for HUD)
         this.currentDisplaySpeed = Math.abs(this.speed) * 1.2;
 
@@ -161,6 +196,22 @@ class Taxi {
         // Off-road penalty
         if (!city.isRoadAt(this.x, this.y)) {
             this.speed *= 0.96;
+        }
+
+        // Update visual damage level
+        const healthPct = this.health / this.maxHealth;
+        if (healthPct > 0.7) this.damageVisual = 0;
+        else if (healthPct > 0.4) this.damageVisual = 1;
+        else if (healthPct > 0.15) this.damageVisual = 2;
+        else this.damageVisual = 3;
+
+        // Luggage loading timer
+        if (this.loadingLuggage) {
+            this.luggageTimer -= dt;
+            this.speed = 0; // can't move while loading
+            if (this.luggageTimer <= 0) {
+                this.loadingLuggage = false;
+            }
         }
 
         // Fatigue increases while driving
@@ -220,20 +271,40 @@ class Taxi {
         this.totalDamageEvents++;
     }
 
-    refuel() {
+    refuel(pricePerLiter) {
+        const price = pricePerLiter || FUEL_COST_PER_LITER;
         const needed = this.fuelCapacity - this.fuel;
-        const cost = needed * FUEL_COST_PER_LITER;
+        const cost = needed * price;
         if (this.money >= cost) {
             this.money -= cost;
             this.fuel = this.fuelCapacity;
             return { success: true, cost };
         }
         // Partial refuel
-        const affordable = this.money / FUEL_COST_PER_LITER;
+        const affordable = this.money / price;
         this.fuel += affordable;
         const spent = this.money;
         this.money = 0;
         return { success: true, cost: spent };
+    }
+
+    replaceTires() {
+        const cost = 80;
+        if (this.money < cost) return { success: false, cost: 0 };
+        this.money -= cost;
+        this.tireHealth = TIRE_MAX_HEALTH;
+        this.tireBlown = false;
+        this.tirePullDir = 0;
+        return { success: true, cost };
+    }
+
+    addRating(stars) {
+        this.ratingHistory.push(stars);
+        if (this.ratingHistory.length > RATING_SMOOTH_FARES) {
+            this.ratingHistory.shift();
+        }
+        const sum = this.ratingHistory.reduce((a, b) => a + b, 0);
+        this.rating = sum / this.ratingHistory.length;
     }
 
     repair() {

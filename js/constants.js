@@ -19,6 +19,7 @@ const TILE = {
     WATER: 6,
     PARK: 7,
     PARKING: 8,
+    HIGHWAY: 9,
 };
 
 // Building types
@@ -189,3 +190,47 @@ const EVENT_DURATION = 60;
 const FRICTION = 0.97;
 const TURN_SPEED = 2.5;
 const REVERSE_SPEED_FACTOR = 0.4;
+
+// Economy - Fuel price variation per station
+const FUEL_PRICE_MIN = 1.5;
+const FUEL_PRICE_MAX = 3.5;
+const FUEL_PRICE_FLUCTUATION = 0.3; // +/- per hour
+
+// Daily expenses
+const DAILY_INSURANCE = 20;
+const DAILY_PARKING_FEE = 10;
+const DAILY_PHONE_PLAN = 5;
+
+// Tire system
+const TIRE_MAX_HEALTH = 100;
+const TIRE_WEAR_RATE = 0.002;   // per pixel moved
+const TIRE_RAIN_WEAR_MULT = 1.5;
+const TIRE_BLOWOUT_PULL = 1.5;  // steering pull when blown
+
+// Passenger rating
+const RATING_INITIAL = 4.0;
+const RATING_SMOOTH_FARES = 20; // rolling average window
+
+// VIP passengers
+const VIP_CHANCE = 0.08;
+const VIP_FARE_MULTIPLIER = 3.5;
+const VIP_MIN_CAR_HEALTH = 80;
+const VIP_WAIT_TIME = 15; // seconds - impatient
+
+// Luggage
+const LUGGAGE_CHANCE = 0.25;
+const LUGGAGE_LOAD_TIME = 2.0; // seconds
+const LUGGAGE_TIP_BONUS = 1.5;
+
+// Pedestrians
+const MAX_PEDESTRIANS = 30;
+const PEDESTRIAN_SPEED = 25;
+const PEDESTRIAN_HIT_FINE = 200;
+
+// Buses
+const MAX_BUSES = 3;
+const BUS_SPEED = 35;
+const BUS_STOP_TIME = 4; // seconds at each stop
+
+// Highway
+const HIGHWAY_SPEED_LIMIT = 350; // no speed cameras on highway

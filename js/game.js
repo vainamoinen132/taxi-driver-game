@@ -73,8 +73,19 @@ class Game {
         // Create app order manager
         this.appOrderMgr = new AppOrderManager(this.city);
 
+        // Weather system
+        this.weather = new WeatherSystem();
+
         // Phone UI state
         this.showingPhone = false;
+
+        // Day tracking for daily expenses
+        this.lastExpenseDay = 1;
+
+        // Realism state flags
+        this._pendingPickup = null;
+        this._tireWarned = false;
+        this._blowoutNotified = false;
 
         // Create HUD
         this.hud = new HUD();
@@ -113,10 +124,28 @@ class Game {
         this.realTimeAccum += dt;
         this.gameTime += dt * TIME_SCALE;
 
+        // Update weather & day/night
+        this.weather.update(dt, this.gameTime);
+
+        // Pass weather effects to taxi
+        this.taxi.weatherGripMod = this.weather.gripMultiplier;
+        this.taxi.weatherRainIntensity = this.weather.current === 'rain' ? this.weather.intensity : 0;
+
         // Day cycle
         if (this.gameTime >= 24 * 60) {
             this.gameTime -= 24 * 60;
             this.taxi.day++;
+        }
+
+        // Daily expenses at start of new day
+        if (this.taxi.day > this.lastExpenseDay) {
+            this.lastExpenseDay = this.taxi.day;
+            const expenses = DAILY_INSURANCE + DAILY_PARKING_FEE + DAILY_PHONE_PLAN;
+            this.taxi.money -= expenses;
+            this.hazardMgr.addNotification(
+                `📅 Day ${this.taxi.day}: Daily expenses -${formatMoney(expenses)} (Insurance, Parking, Phone)`,
+                'warning'
+            );
         }
 
         // Update taxi input
@@ -136,7 +165,7 @@ class Game {
                 this.taxi.isResting = false;
                 this.hazardMgr.addNotification('😊 Fully rested! Ready to hit the road!', 'info');
             }
-            this.hud.update(this.taxi, this.gameTime, this.hazardMgr, this.eventMgr, this.appOrderMgr);
+            this.hud.update(this.taxi, this.gameTime, this.hazardMgr, this.eventMgr, this.appOrderMgr, this.weather);
             this.camera.follow(this.taxi.x, this.taxi.y);
             return; // skip everything else while resting
         }
@@ -159,6 +188,14 @@ class Game {
             this._checkVehicleCollision(npc, 'car');
         }
 
+        // Check bus-player collision
+        for (const bus of this.trafficMgr.buses) {
+            this._checkVehicleCollision(bus, 'bus');
+        }
+
+        // Check pedestrian collision (fine, no damage to car)
+        this._checkPedestrianCollisions();
+
         // Update passengers
         this.passengerMgr.update(dt, this.taxi, this.aiTaxis);
 
@@ -173,6 +210,40 @@ class Game {
 
         // Check interaction with buildings
         this.taxi.nearBuilding = this.taxi.getInteractionBuilding(this.city);
+
+        // Handle pending luggage pickup completion
+        if (this._pendingPickup && !this.taxi.loadingLuggage && !this.taxi.hasPassenger) {
+            const p = this._pendingPickup;
+            if (p.active && !p.pickedUp) {
+                p.pickedUp = true;
+                this.taxi.passenger = p;
+                this.taxi.hasPassenger = true;
+                this.taxi.rideDamageTaken = 0;
+                this.taxi.rideStartTime = this.gameTime;
+                this.audio.playPickup();
+                this.hazardMgr.addNotification(`🧳 Luggage loaded! Head to ${p.getDestinationName()}`, 'info');
+            }
+            this._pendingPickup = null;
+        }
+
+        // Track damage during ride for rating
+        if (this.taxi.hasPassenger && this.taxi.flashTimer > 0) {
+            this.taxi.rideDamageTaken += 1;
+        }
+
+        // Tire health warnings
+        if (this.taxi.tireHealth < 20 && !this._tireWarned) {
+            this._tireWarned = true;
+            this.hazardMgr.addNotification('🛞 Tires very worn! Visit a mechanic soon.', 'warning');
+        } else if (this.taxi.tireHealth >= 20) {
+            this._tireWarned = false;
+        }
+        if (this.taxi.tireBlown && !this._blowoutNotified) {
+            this._blowoutNotified = true;
+            this.hazardMgr.addNotification('💥 TIRE BLOWOUT! Car pulling to one side. Get to a mechanic!', 'danger');
+        } else if (!this.taxi.tireBlown) {
+            this._blowoutNotified = false;
+        }
 
         // Fatigue warnings
         if (this.taxi.fatigue > 85 && !this._fatigueWarned85) {
@@ -200,7 +271,7 @@ class Game {
         this.camera.follow(this.taxi.x, this.taxi.y);
 
         // Update HUD
-        this.hud.update(this.taxi, this.gameTime, this.hazardMgr, this.eventMgr, this.appOrderMgr);
+        this.hud.update(this.taxi, this.gameTime, this.hazardMgr, this.eventMgr, this.appOrderMgr, this.weather);
 
         // Update phone UI if open
         if (this.showingPhone) {
@@ -239,6 +310,29 @@ class Game {
         }
     }
 
+    _checkPedestrianCollisions() {
+        if (!this.trafficMgr || !this.trafficMgr.pedestrians) return;
+        const pb = this.taxi.getBounds();
+        for (let i = this.trafficMgr.pedestrians.length - 1; i >= 0; i--) {
+            const ped = this.trafficMgr.pedestrians[i];
+            const pedb = ped.getBounds();
+            if (rectsOverlap(pb.x, pb.y, pb.w, pb.h, pedb.x, pedb.y, pedb.w, pedb.h)) {
+                if (Math.abs(this.taxi.speed) > 15 && this.taxi.invulnTimer <= 0) {
+                    this.taxi.money -= PEDESTRIAN_HIT_FINE;
+                    this.taxi.totalFines++;
+                    this.taxi.invulnTimer = 2.0;
+                    this.taxi.speed *= 0.3;
+                    this.hazardMgr.addNotification(`🚶 Hit a pedestrian! Fine: ${formatMoney(PEDESTRIAN_HIT_FINE)}`, 'danger');
+                    this.audio.playFine();
+                    // Remove the pedestrian
+                    this.trafficMgr.pedestrians.splice(i, 1);
+                    // Rating penalty
+                    this.taxi.addRating(1);
+                }
+            }
+        }
+    }
+
     _render(dt) {
         this.renderer.render(
             this.camera,
@@ -251,7 +345,8 @@ class Game {
             this.eventMgr,
             this.appOrderMgr,
             this.gameTime,
-            dt
+            dt,
+            this.weather
         );
     }
 
@@ -364,14 +459,30 @@ class Game {
             // Try to pick up nearest street passenger
             const p = this.passengerMgr.getNearestPassenger(this.taxi.x, this.taxi.y);
             if (p && Math.abs(this.taxi.speed) < 30) {
+                // VIP check: requires good car health
+                if (p.isVIP && this.taxi.health < VIP_MIN_CAR_HEALTH) {
+                    this.hazardMgr.addNotification(`🤵 VIP ${p.name} refuses your car — health too low!`, 'warning');
+                    return;
+                }
+                // Luggage loading delay
+                if (p.hasLuggage && !this.taxi.loadingLuggage) {
+                    this.taxi.loadingLuggage = true;
+                    this.taxi.luggageTimer = LUGGAGE_LOAD_TIME;
+                    this.hazardMgr.addNotification(`🧳 Loading luggage...`, 'info');
+                    // Mark pending so we pick up after loading
+                    this._pendingPickup = p;
+                    return;
+                }
                 p.pickedUp = true;
                 this.taxi.passenger = p;
                 this.taxi.hasPassenger = true;
+                this.taxi.rideDamageTaken = 0;
+                this.taxi.rideStartTime = this.gameTime;
+                this._pendingPickup = null;
                 this.audio.playPickup();
-                this.hazardMgr.addNotification(
-                    `🧑 Picked up ${p.name}! Head to ${p.getDestinationName()}`,
-                    'info'
-                );
+                let msg = p.isVIP ? `🤵 VIP ${p.name}` : `🧑 Picked up ${p.name}`;
+                msg += `! Head to ${p.getDestinationName()}`;
+                this.hazardMgr.addNotification(msg, 'info');
             }
         } else {
             // Try to drop off at destination
@@ -401,11 +512,11 @@ class Game {
 
     _completeFare(passenger) {
         if (passenger.type === 'thief') {
-            // Thief event!
             this.hazardMgr.handleThiefPassenger(this.taxi, passenger);
             this.audio.playDamage();
         } else {
-            const result = passenger.calculateFare(this.taxi.fareBonus);
+            const fareMultiplier = this.weather.getFareMultiplier(this.gameTime);
+            const result = passenger.calculateFare(this.taxi.fareBonus, fareMultiplier, this.taxi.rideDamageTaken);
             const total = result.fare + result.tip;
 
             if (result.message) {
@@ -414,12 +525,20 @@ class Game {
             } else {
                 let msg = `✅ Fare: ${formatMoney(result.fare)}`;
                 if (result.tip > 0) msg += ` + Tip: ${formatMoney(result.tip)}`;
+                const starStr = '⭐'.repeat(result.stars) + '☆'.repeat(5 - result.stars);
+                msg += ` | ${starStr}`;
+                if (fareMultiplier > 1) msg += ` (${fareMultiplier}x surge)`;
                 this.hazardMgr.addNotification(msg, 'info');
                 this.audio.playDropoff();
             }
 
             this.taxi.money += total;
             this.taxi.totalEarnings += total;
+
+            // Update rating
+            if (result.stars) {
+                this.taxi.addRating(result.stars);
+            }
         }
 
         this.taxi.totalFares++;
@@ -434,11 +553,12 @@ class Game {
         if (Math.abs(this.taxi.speed) > 20) return;
 
         if (building.type === BUILDING_TYPE.GAS_STATION) {
-            const result = this.taxi.refuel();
+            const price = building.fuelPrice || FUEL_COST_PER_LITER;
+            const result = this.taxi.refuel(price);
             if (result.success) {
                 this.audio.playRefuel();
                 this.hazardMgr.addNotification(
-                    `⛽ Refueled! Cost: ${formatMoney(result.cost)}`,
+                    `⛽ Refueled! Cost: ${formatMoney(result.cost)} ($${price.toFixed(2)}/L)`,
                     'info'
                 );
             }
@@ -450,6 +570,16 @@ class Game {
                     `🔧 Car repaired! Cost: ${formatMoney(result.cost)}`,
                     'info'
                 );
+            }
+            // Also offer tire replacement if worn
+            if (this.taxi.tireHealth < 30) {
+                const tireResult = this.taxi.replaceTires();
+                if (tireResult.success) {
+                    this.hazardMgr.addNotification(
+                        `🛞 Tires replaced! Cost: ${formatMoney(tireResult.cost)}`,
+                        'info'
+                    );
+                }
             }
         } else if (building.type === BUILDING_TYPE.HOME) {
             if (this.taxi.hasPassenger) {

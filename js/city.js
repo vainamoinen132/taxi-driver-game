@@ -82,6 +82,9 @@ class City {
         // Add a few park areas
         this._addParks();
 
+        // Add highway loop around outer edge of map
+        this._addHighway();
+
         // Collect sidewalk tiles (after buildings/parking placed, so list is accurate)
         this.sidewalkTiles = [];
         for (let r = 0; r < MAP_ROWS; r++) {
@@ -90,6 +93,31 @@ class City {
                     this.sidewalkTiles.push({ col: c, row: r });
                 }
             }
+        }
+    }
+
+    _addHighway() {
+        // Build a 2-lane highway ring around the outer edge of the map
+        const margin = 2;
+        // Top edge
+        for (let c = margin; c < MAP_COLS - margin; c++) {
+            this.tiles[margin][c] = TILE.HIGHWAY;
+            this.tiles[margin + 1][c] = TILE.HIGHWAY;
+        }
+        // Bottom edge
+        for (let c = margin; c < MAP_COLS - margin; c++) {
+            this.tiles[MAP_ROWS - margin - 1][c] = TILE.HIGHWAY;
+            this.tiles[MAP_ROWS - margin - 2][c] = TILE.HIGHWAY;
+        }
+        // Left edge
+        for (let r = margin; r < MAP_ROWS - margin; r++) {
+            this.tiles[r][margin] = TILE.HIGHWAY;
+            this.tiles[r][margin + 1] = TILE.HIGHWAY;
+        }
+        // Right edge
+        for (let r = margin; r < MAP_ROWS - margin; r++) {
+            this.tiles[r][MAP_COLS - margin - 1] = TILE.HIGHWAY;
+            this.tiles[r][MAP_COLS - margin - 2] = TILE.HIGHWAY;
         }
     }
 
@@ -274,6 +302,11 @@ class City {
             height: h * TILE_SIZE,
             parkingTiles: [],
         };
+        // Gas stations get unique fuel prices
+        if (type === BUILDING_TYPE.GAS_STATION) {
+            building.fuelPrice = rand(FUEL_PRICE_MIN, FUEL_PRICE_MAX);
+            building.fuelPrice = Math.round(building.fuelPrice * 100) / 100;
+        }
         this.buildings.push(building);
 
         // Add parking lot next to service buildings

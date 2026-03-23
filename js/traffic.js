@@ -195,7 +195,7 @@ class NpcCar {
         const tile = pixelToTile(newX, newY);
         if (tile.row >= 0 && tile.row < MAP_ROWS && tile.col >= 0 && tile.col < MAP_COLS) {
             const t = this.city.tiles[tile.row][tile.col];
-            if (t === TILE.ROAD_H || t === TILE.ROAD_V || t === TILE.ROAD_CROSS || t === TILE.SIDEWALK || t === TILE.PARKING) {
+            if (t === TILE.ROAD_H || t === TILE.ROAD_V || t === TILE.ROAD_CROSS || t === TILE.SIDEWALK || t === TILE.PARKING || t === TILE.HIGHWAY) {
                 this.x = newX;
                 this.y = newY;
             } else {
@@ -251,14 +251,237 @@ class NpcCar {
     }
 }
 
+// ============================================================
+// PEDESTRIANS - Walk on sidewalks, use crossings, jaywalkers
+// ============================================================
+
+class Pedestrian {
+    constructor(x, y, city) {
+        this.x = x;
+        this.y = y;
+        this.city = city;
+        this.speed = PEDESTRIAN_SPEED + rand(-8, 8);
+        this.angle = Math.random() * Math.PI * 2;
+        this.width = 8;
+        this.height = 8;
+        this.color = randChoice(['#FFD700', '#FF6B6B', '#6BCB77', '#4ECDC4', '#A78BFA', '#F472B6', '#FF8C00']);
+        this.waypoints = [];
+        this.waypointIdx = 0;
+        this.isJaywalker = Math.random() < 0.08;
+        this.stuckTimer = 0;
+        this._buildPath();
+    }
+
+    _buildPath() {
+        this.waypoints = [];
+        this.waypointIdx = 0;
+        let { col, row } = pixelToTile(this.x, this.y);
+
+        // Find nearest sidewalk
+        if (!this._isSidewalk(row, col)) {
+            const snap = this._findNearestSidewalk(row, col);
+            if (snap) { row = snap.row; col = snap.col; }
+            else return;
+        }
+
+        const visited = new Set();
+        let cr = row, cc = col;
+        const dirs = [{ dr: -1, dc: 0 }, { dr: 1, dc: 0 }, { dr: 0, dc: -1 }, { dr: 0, dc: 1 }];
+        let dir = randChoice(dirs);
+
+        for (let step = 0; step < 20; step++) {
+            const key = `${cr},${cc}`;
+            if (visited.has(key)) break;
+            visited.add(key);
+            const pos = tileToPixel(cc, cr);
+            this.waypoints.push({ x: pos.x + rand(-8, 8), y: pos.y + rand(-8, 8) });
+
+            const nr = cr + dir.dr;
+            const nc = cc + dir.dc;
+            const canWalk = this.isJaywalker ? this._isWalkable(nr, nc) : this._isSidewalk(nr, nc);
+            if (canWalk) {
+                cr = nr; cc = nc;
+            } else {
+                const newDirs = dirs.filter(d => {
+                    const walkable = this.isJaywalker ? this._isWalkable(cr + d.dr, cc + d.dc) : this._isSidewalk(cr + d.dr, cc + d.dc);
+                    return walkable && !(d.dr === -dir.dr && d.dc === -dir.dc);
+                });
+                if (newDirs.length > 0) {
+                    dir = randChoice(newDirs);
+                    cr += dir.dr; cc += dir.dc;
+                } else break;
+            }
+        }
+    }
+
+    _isSidewalk(r, c) {
+        if (r < 0 || r >= MAP_ROWS || c < 0 || c >= MAP_COLS) return false;
+        return this.city.tiles[r][c] === TILE.SIDEWALK || this.city.tiles[r][c] === TILE.PARKING;
+    }
+
+    _isWalkable(r, c) {
+        if (r < 0 || r >= MAP_ROWS || c < 0 || c >= MAP_COLS) return false;
+        const t = this.city.tiles[r][c];
+        return t === TILE.SIDEWALK || t === TILE.PARKING || t === TILE.ROAD_H || t === TILE.ROAD_V || t === TILE.ROAD_CROSS;
+    }
+
+    _findNearestSidewalk(r, c) {
+        for (let radius = 1; radius < 6; radius++) {
+            for (let dr = -radius; dr <= radius; dr++) {
+                for (let dc = -radius; dc <= radius; dc++) {
+                    if (this._isSidewalk(r + dr, c + dc)) return { row: r + dr, col: c + dc };
+                }
+            }
+        }
+        return null;
+    }
+
+    update(dt) {
+        if (this.waypoints.length < 2) {
+            this._buildPath();
+            return;
+        }
+
+        const wp = this.waypoints[this.waypointIdx];
+        const d = dist(this.x, this.y, wp.x, wp.y);
+        if (d < 6) {
+            this.waypointIdx++;
+            if (this.waypointIdx >= this.waypoints.length) {
+                this._buildPath();
+                return;
+            }
+        }
+
+        const target = this.waypoints[Math.min(this.waypointIdx, this.waypoints.length - 1)];
+        this.angle = Math.atan2(target.y - this.y, target.x - this.x);
+        this.x += Math.cos(this.angle) * this.speed * dt;
+        this.y += Math.sin(this.angle) * this.speed * dt;
+
+        // Stuck detection
+        this.stuckTimer += dt;
+        if (this.stuckTimer > 8) {
+            this.stuckTimer = 0;
+            this._buildPath();
+        }
+    }
+
+    getBounds() {
+        return { x: this.x - 4, y: this.y - 4, w: 8, h: 8 };
+    }
+}
+
+// ============================================================
+// BUS - Follows fixed route on roads, stops at bus stops
+// ============================================================
+
+class Bus {
+    constructor(city) {
+        this.city = city;
+        this.width = 52;
+        this.height = 18;
+        this.color = '#1565C0';
+        this.speed = 0;
+        this.maxSpeed = BUS_SPEED;
+        this.angle = 0;
+        this.stopTimer = 0;
+        this.isStopped = false;
+
+        // Build route
+        this.waypoints = [];
+        this.waypointIdx = 0;
+        this._buildRoute();
+
+        const wp = this.waypoints[0];
+        if (wp) { this.x = wp.x; this.y = wp.y; }
+        else {
+            const pos = city.getRandomRoadPosition();
+            this.x = pos.x; this.y = pos.y;
+        }
+    }
+
+    _buildRoute() {
+        this.waypoints = [];
+        this.waypointIdx = 0;
+
+        // Pick a random horizontal road and follow it
+        if (this.city.horizontalRoads.length === 0) return;
+        const roadRow = randChoice(this.city.horizontalRoads);
+        for (let c = 2; c < MAP_COLS - 2; c += 3) {
+            if (isRoadTile(this.city.tiles[roadRow][c])) {
+                const pos = tileToPixel(c, roadRow);
+                const isStop = c % 12 === 0; // bus stop every ~12 tiles
+                this.waypoints.push({ x: pos.x, y: pos.y, isStop });
+            }
+        }
+        // Return trip
+        for (let c = MAP_COLS - 3; c >= 2; c -= 3) {
+            if (isRoadTile(this.city.tiles[roadRow][c])) {
+                const pos = tileToPixel(c, roadRow);
+                this.waypoints.push({ x: pos.x, y: pos.y, isStop: false });
+            }
+        }
+    }
+
+    update(dt) {
+        if (this.waypoints.length < 2) { this._buildRoute(); return; }
+
+        if (this.isStopped) {
+            this.stopTimer -= dt;
+            this.speed = 0;
+            if (this.stopTimer <= 0) { this.isStopped = false; }
+            return;
+        }
+
+        const wp = this.waypoints[this.waypointIdx];
+        const d = dist(this.x, this.y, wp.x, wp.y);
+
+        if (d < TILE_SIZE * 0.8) {
+            if (wp.isStop) {
+                this.isStopped = true;
+                this.stopTimer = BUS_STOP_TIME;
+                this.speed = 0;
+            }
+            this.waypointIdx++;
+            if (this.waypointIdx >= this.waypoints.length) {
+                this.waypointIdx = 0;
+            }
+        }
+
+        const target = this.waypoints[this.waypointIdx];
+        const desiredAngle = Math.atan2(target.y - this.y, target.x - this.x);
+        let diff = desiredAngle - this.angle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        this.angle += clamp(diff, -2.0 * dt, 2.0 * dt);
+
+        const wantedSpeed = this.maxSpeed * (Math.abs(diff) > 0.5 ? 0.4 : 1.0);
+        if (this.speed < wantedSpeed) this.speed += 25 * dt;
+        else this.speed -= 40 * dt;
+        this.speed = clamp(this.speed, 0, this.maxSpeed);
+
+        this.x += Math.cos(this.angle) * this.speed * dt;
+        this.y += Math.sin(this.angle) * this.speed * dt;
+    }
+
+    getBounds() {
+        return { x: this.x - this.width / 2, y: this.y - this.height / 2, w: this.width, h: this.height };
+    }
+}
+
+// ============================================================
+// TRAFFIC MANAGER
+// ============================================================
+
 class TrafficManager {
     constructor(city) {
         this.city = city;
         this.cars = [];
+        this.pedestrians = [];
+        this.buses = [];
     }
 
     update(dt, playerTaxi) {
-        // Gradually spawn cars up to limit, always far from player
+        // Spawn NPC cars
         while (this.cars.length < MAX_NPC_CARS) {
             let spawned = false;
             for (let attempt = 0; attempt < 20; attempt++) {
@@ -269,11 +492,44 @@ class TrafficManager {
                     break;
                 }
             }
-            if (!spawned) break; // can't find valid spot, try next frame
+            if (!spawned) break;
+        }
+
+        // Spawn pedestrians
+        while (this.pedestrians.length < MAX_PEDESTRIANS) {
+            if (this.city.sidewalkTiles && this.city.sidewalkTiles.length > 0) {
+                const tile = randChoice(this.city.sidewalkTiles);
+                const pos = tileToPixel(tile.col, tile.row);
+                if (dist(pos.x, pos.y, playerTaxi.x, playerTaxi.y) > TILE_SIZE * 10) {
+                    this.pedestrians.push(new Pedestrian(pos.x, pos.y, this.city));
+                }
+            }
+            break; // spawn 1 per frame max
+        }
+
+        // Spawn buses
+        while (this.buses.length < MAX_BUSES) {
+            this.buses.push(new Bus(this.city));
         }
 
         for (const car of this.cars) {
             car.update(dt, this.cars, playerTaxi);
+        }
+
+        for (const ped of this.pedestrians) {
+            ped.update(dt);
+        }
+
+        for (const bus of this.buses) {
+            bus.update(dt);
+        }
+
+        // Remove distant pedestrians and respawn
+        for (let i = this.pedestrians.length - 1; i >= 0; i--) {
+            const ped = this.pedestrians[i];
+            if (dist(ped.x, ped.y, playerTaxi.x, playerTaxi.y) > TILE_SIZE * 40) {
+                this.pedestrians.splice(i, 1);
+            }
         }
     }
 }

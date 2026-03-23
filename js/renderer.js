@@ -23,6 +23,7 @@ class Renderer {
             [TILE.WATER]: '#4488cc',
             [TILE.PARK]: '#2d8a2d',
             [TILE.PARKING]: '#707070',
+            [TILE.HIGHWAY]: '#444444',
         };
 
         // Road markings pattern
@@ -45,7 +46,7 @@ class Renderer {
         mm.height = mm.clientHeight;
     }
 
-    render(camera, city, taxi, aiTaxis, trafficMgr, passengerMgr, hazardMgr, eventMgr, appOrderMgr, gameTime, dt) {
+    render(camera, city, taxi, aiTaxis, trafficMgr, passengerMgr, hazardMgr, eventMgr, appOrderMgr, gameTime, dt, weather) {
         const ctx = this.ctx;
         const cam = camera;
 
@@ -66,6 +67,9 @@ class Renderer {
         // Draw buildings
         this._drawBuildings(ctx, cam, city, startCol, endCol, startRow, endRow);
 
+        // Draw fuel price signs on gas stations
+        this._drawFuelPriceSigns(ctx, cam, city);
+
         // Draw traffic lights at intersections
         this._drawTrafficLights(ctx, cam, city);
 
@@ -75,23 +79,32 @@ class Renderer {
         // Draw passengers
         this._drawPassengers(ctx, cam, passengerMgr);
 
+        // Draw pedestrians
+        if (trafficMgr) {
+            this._drawPedestrians(ctx, cam, trafficMgr.pedestrians);
+        }
+
         // Draw NPC traffic
         if (trafficMgr) {
             for (const car of trafficMgr.cars) {
-                this._drawCar(ctx, cam, car.x, car.y, car.angle, car.width, car.height, car.color, false);
+                this._drawCar(ctx, cam, car.x, car.y, car.angle, car.width, car.height, car.color, false, weather);
+            }
+            // Draw buses
+            for (const bus of trafficMgr.buses) {
+                this._drawBus(ctx, cam, bus, weather);
             }
         }
 
         // Draw AI taxis
         for (const ai of aiTaxis) {
-            this._drawCar(ctx, cam, ai.x, ai.y, ai.angle, ai.width, ai.height, ai.color, false);
+            this._drawCar(ctx, cam, ai.x, ai.y, ai.angle, ai.width, ai.height, ai.color, false, weather);
         }
 
         // Update and draw particles
         this._updateParticles(ctx, cam, taxi, dt);
 
         // Draw player taxi
-        this._drawPlayerTaxi(ctx, cam, taxi);
+        this._drawPlayerTaxi(ctx, cam, taxi, weather);
 
         // Draw destination marker if has passenger
         if (taxi.hasPassenger && taxi.passenger) {
@@ -120,8 +133,21 @@ class Renderer {
             this._drawRestingOverlay(ctx, taxi);
         }
 
-        // Draw day/night overlay
-        this._drawDayNightOverlay(ctx, gameTime);
+        // Draw day/night + weather overlay
+        this._drawDayNightOverlay(ctx, gameTime, weather);
+
+        // Draw rain particles
+        if (weather && weather.current === 'rain' && weather.intensity > 0.1) {
+            this._drawRain(ctx, weather);
+        }
+
+        // Draw fog overlay
+        if (weather && weather.current === 'fog' && weather.intensity > 0.1) {
+            this._drawFog(ctx, weather);
+        }
+
+        // Draw dashboard (speedometer + fuel gauge)
+        this._drawDashboard(ctx, taxi, weather, gameTime);
 
         // Draw minimap
         this._drawMinimap(city, taxi, aiTaxis, passengerMgr, eventMgr, trafficMgr);
@@ -177,6 +203,37 @@ class Renderer {
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
                     ctx.fillText('P', sx + TILE_SIZE / 2, sy + TILE_SIZE / 2);
+                }
+
+                // Highway markings
+                if (tile === TILE.HIGHWAY) {
+                    // Edge lines (solid white)
+                    ctx.strokeStyle = '#ffffff55';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([]);
+                    // Determine edge direction
+                    const aboveHwy = r > 0 && city.tiles[r - 1][c] === TILE.HIGHWAY;
+                    const belowHwy = r < MAP_ROWS - 1 && city.tiles[r + 1][c] === TILE.HIGHWAY;
+                    const leftHwy = c > 0 && city.tiles[r][c - 1] === TILE.HIGHWAY;
+                    const rightHwy = c < MAP_COLS - 1 && city.tiles[r][c + 1] === TILE.HIGHWAY;
+                    // Center dashes between lanes
+                    if (leftHwy || rightHwy) {
+                        ctx.strokeStyle = '#FFD70066';
+                        ctx.setLineDash([8, 8]);
+                        ctx.beginPath();
+                        ctx.moveTo(sx, sy + TILE_SIZE / 2);
+                        ctx.lineTo(sx + TILE_SIZE, sy + TILE_SIZE / 2);
+                        ctx.stroke();
+                    }
+                    if (aboveHwy || belowHwy) {
+                        ctx.strokeStyle = '#FFD70066';
+                        ctx.setLineDash([8, 8]);
+                        ctx.beginPath();
+                        ctx.moveTo(sx + TILE_SIZE / 2, sy);
+                        ctx.lineTo(sx + TILE_SIZE / 2, sy + TILE_SIZE);
+                        ctx.stroke();
+                    }
+                    ctx.setLineDash([]);
                 }
 
                 // Park decorations
@@ -315,9 +372,10 @@ class Renderer {
         ctx.fill();
     }
 
-    _drawCar(ctx, cam, x, y, angle, w, h, color, isPlayer) {
+    _drawCar(ctx, cam, x, y, angle, w, h, color, isPlayer, weather) {
         const sx = x - cam.x;
         const sy = y - cam.y;
+        const isNight = weather && weather.isNight();
 
         ctx.save();
         ctx.translate(sx, sy);
@@ -343,10 +401,22 @@ class Renderer {
         ctx.fillStyle = '#87CEEB55';
         ctx.fillRect(-w / 2 + 2, -h / 4, w / 8, h / 2);
 
-        // Headlights
-        ctx.fillStyle = '#FFFF88';
+        // Headlights (brighter at night)
+        ctx.fillStyle = isNight ? '#FFFFCC' : '#FFFF88';
         ctx.fillRect(w / 2 - 3, -h / 2 + 2, 4, 4);
         ctx.fillRect(w / 2 - 3, h / 2 - 6, 4, 4);
+
+        // Headlight beam at night
+        if (isNight) {
+            ctx.fillStyle = 'rgba(255,255,200,0.08)';
+            ctx.beginPath();
+            ctx.moveTo(w / 2, -h / 2);
+            ctx.lineTo(w / 2 + 60, -h - 20);
+            ctx.lineTo(w / 2 + 60, h + 20);
+            ctx.lineTo(w / 2, h / 2);
+            ctx.closePath();
+            ctx.fill();
+        }
 
         // Taillights
         ctx.fillStyle = '#FF4444';
@@ -372,7 +442,7 @@ class Renderer {
         ctx.restore();
     }
 
-    _drawPlayerTaxi(ctx, cam, taxi) {
+    _drawPlayerTaxi(ctx, cam, taxi, weather) {
         // Flash effect
         let color = '#f5c518';
         if (taxi.flashTimer > 0 && taxi.flashColor) {
@@ -381,7 +451,6 @@ class Renderer {
 
         // Low fuel warning pulse
         if (taxi.fuel < 20 && Math.sin(Date.now() / 200) > 0) {
-            // Draw fuel warning ring
             const sp = cam.worldToScreen(taxi.x, taxi.y);
             ctx.strokeStyle = '#e74c3c';
             ctx.lineWidth = 2;
@@ -404,7 +473,22 @@ class Renderer {
             ctx.setLineDash([]);
         }
 
-        this._drawCar(ctx, cam, taxi.x, taxi.y, taxi.angle, taxi.width, taxi.height, color, true);
+        // Tire blowout indicator
+        if (taxi.tireBlown && Math.sin(Date.now() / 150) > 0) {
+            const sp = cam.worldToScreen(taxi.x, taxi.y);
+            ctx.strokeStyle = '#ff4444';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(sp.x, sp.y, 25, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        this._drawCar(ctx, cam, taxi.x, taxi.y, taxi.angle, taxi.width, taxi.height, color, true, weather);
+
+        // Draw damage overlay on player taxi
+        if (taxi.damageVisual > 0) {
+            this._drawDamageOverlay(ctx, cam, taxi);
+        }
     }
 
     _drawPassengers(ctx, cam, passengerMgr) {
@@ -416,6 +500,22 @@ class Renderer {
             const sy = p.y - cam.y;
             const bob = Math.sin(p.bobTimer) * 3;
 
+            // VIP glow
+            if (p.isVIP) {
+                ctx.strokeStyle = '#FFD700';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                ctx.arc(sx, sy - 4 + bob, 16, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                // VIP label
+                ctx.font = 'bold 8px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#FFD700';
+                ctx.fillText('VIP', sx, sy - 26 + bob);
+            }
+
             // Shadow
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
             ctx.beginPath();
@@ -423,7 +523,7 @@ class Renderer {
             ctx.fill();
 
             // Body
-            ctx.fillStyle = p.color;
+            ctx.fillStyle = p.isVIP ? '#FFD700' : p.color;
             ctx.fillRect(sx - 5, sy - 10 + bob, 10, 14);
 
             // Head
@@ -431,6 +531,13 @@ class Renderer {
             ctx.beginPath();
             ctx.arc(sx, sy - 14 + bob, 6, 0, Math.PI * 2);
             ctx.fill();
+
+            // Luggage icon
+            if (p.hasLuggage) {
+                ctx.font = '10px serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('🧳', sx + 10, sy + 2 + bob);
+            }
 
             // Wave animation
             if (p.waitTimer > 10) {
@@ -704,40 +811,349 @@ class Renderer {
         }
     }
 
-    _drawDayNightOverlay(ctx, gameTime) {
+    _drawDayNightOverlay(ctx, gameTime, weather) {
         if (gameTime === undefined) return;
         const hour = (gameTime / 60) % 24;
         let alpha = 0;
 
-        // Night: 21:00 - 05:00 = dark overlay
-        // Dusk: 18:00 - 21:00 = fade in
-        // Dawn: 05:00 - 07:00 = fade out
         if (hour >= 21 || hour < 5) {
-            alpha = 0.45;
+            alpha = 0.5;
         } else if (hour >= 18 && hour < 21) {
-            alpha = ((hour - 18) / 3) * 0.45;
+            alpha = ((hour - 18) / 3) * 0.5;
         } else if (hour >= 5 && hour < 7) {
-            alpha = (1 - (hour - 5) / 2) * 0.45;
+            alpha = (1 - (hour - 5) / 2) * 0.5;
+        }
+
+        // Weather darkening
+        if (weather && weather.current === 'rain') {
+            alpha = Math.min(0.6, alpha + weather.intensity * 0.15);
         }
 
         if (alpha > 0.01) {
             ctx.fillStyle = `rgba(10, 10, 40, ${alpha})`;
             ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-            // Street lights near intersections at night
+            // Street lights at night — headlight glow around player
             if (alpha > 0.2) {
                 ctx.globalCompositeOperation = 'lighter';
-                // We'll just add a subtle warm glow near the player
                 const cx = this.canvas.width / 2;
                 const cy = this.canvas.height / 2;
-                const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 250);
-                grad.addColorStop(0, `rgba(255, 230, 150, ${alpha * 0.3})`);
+                const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 280);
+                grad.addColorStop(0, `rgba(255, 230, 150, ${alpha * 0.35})`);
                 grad.addColorStop(1, 'rgba(255, 230, 150, 0)');
                 ctx.fillStyle = grad;
-                ctx.fillRect(cx - 250, cy - 250, 500, 500);
+                ctx.fillRect(cx - 280, cy - 280, 560, 560);
                 ctx.globalCompositeOperation = 'source-over';
             }
         }
+
+        // Dusk/dawn sky tint
+        if (weather) {
+            if (hour >= 17 && hour < 19) {
+                const t = (hour - 17) / 2;
+                ctx.fillStyle = `rgba(255, 100, 50, ${t * 0.08})`;
+                ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            } else if (hour >= 5 && hour < 7) {
+                const t = 1 - (hour - 5) / 2;
+                ctx.fillStyle = `rgba(255, 180, 80, ${t * 0.06})`;
+                ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            }
+        }
+    }
+
+    _drawRain(ctx, weather) {
+        ctx.strokeStyle = `rgba(180, 200, 255, ${weather.intensity * 0.5})`;
+        ctx.lineWidth = 1;
+        for (const drop of weather.rainDrops) {
+            const sx = drop.x % this.canvas.width;
+            const sy = drop.y % this.canvas.height;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.lineTo(sx - 2, sy + drop.length);
+            ctx.stroke();
+        }
+    }
+
+    _drawFog(ctx, weather) {
+        const alpha = weather.intensity * 0.35;
+        ctx.fillStyle = `rgba(200, 200, 210, ${alpha})`;
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        // Fog gradient — thicker at edges
+        const cx = this.canvas.width / 2;
+        const cy = this.canvas.height / 2;
+        const grad = ctx.createRadialGradient(cx, cy, 100, cx, cy, Math.max(cx, cy));
+        grad.addColorStop(0, 'rgba(200,200,210,0)');
+        grad.addColorStop(1, `rgba(200,200,210,${alpha * 0.8})`);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+
+    _drawDamageOverlay(ctx, cam, taxi) {
+        const sx = taxi.x - cam.x;
+        const sy = taxi.y - cam.y;
+        ctx.save();
+        ctx.translate(sx, sy);
+        ctx.rotate(taxi.angle);
+        const hw = taxi.width / 2;
+        const hh = taxi.height / 2;
+
+        if (taxi.damageVisual >= 1) {
+            // Scratches
+            ctx.strokeStyle = 'rgba(80,80,80,0.6)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(-hw + 4, -hh + 3); ctx.lineTo(-hw + 12, -hh + 8);
+            ctx.moveTo(hw - 8, hh - 3); ctx.lineTo(hw - 3, hh - 7);
+            ctx.stroke();
+        }
+        if (taxi.damageVisual >= 2) {
+            // Dents
+            ctx.fillStyle = 'rgba(60,40,20,0.4)';
+            ctx.beginPath();
+            ctx.arc(-hw + 6, 0, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(hw - 5, -hh + 5, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        if (taxi.damageVisual >= 3) {
+            // Cracked windshield
+            ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(hw * 0.3, -hh * 0.3);
+            ctx.lineTo(hw * 0.5, -hh * 0.1);
+            ctx.lineTo(hw * 0.35, hh * 0.2);
+            ctx.moveTo(hw * 0.5, -hh * 0.1);
+            ctx.lineTo(hw * 0.6, hh * 0.15);
+            ctx.stroke();
+            // Smoke from hood
+            if (Math.random() < 0.3) {
+                ctx.fillStyle = 'rgba(100,100,100,0.3)';
+                ctx.beginPath();
+                ctx.arc(hw - 2, rand(-5, 5), rand(2, 5), 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        ctx.restore();
+    }
+
+    _drawFuelPriceSigns(ctx, cam, city) {
+        for (const b of city.buildings) {
+            if (b.type !== 'gas_station' || !b.fuelPrice) continue;
+            if (!cam.isVisible(b.x - 10, b.y - 30, b.width + 20, b.height + 40)) continue;
+            const sx = b.x - cam.x + b.width / 2;
+            const sy = b.y - cam.y + b.height + 14;
+
+            // Price sign background
+            ctx.fillStyle = '#222';
+            ctx.fillRect(sx - 24, sy - 8, 48, 16);
+            ctx.strokeStyle = '#F44336';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(sx - 24, sy - 8, 48, 16);
+
+            // Price text
+            ctx.font = 'bold 10px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#0f0';
+            ctx.fillText(`$${b.fuelPrice.toFixed(2)}/L`, sx, sy);
+        }
+    }
+
+    _drawDashboard(ctx, taxi, weather, gameTime) {
+        const cx = this.canvas.width - 100;
+        const cy = this.canvas.height - 90;
+        const r = 40;
+
+        // Background panel
+        ctx.fillStyle = 'rgba(0,0,0,0.65)';
+        this._roundedRect(ctx, cx - 90, cy - 55, 180, 110, 10);
+        ctx.fill();
+
+        // Speedometer arc
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.arc(cx - 30, cy, r, Math.PI * 0.75, Math.PI * 2.25);
+        ctx.stroke();
+
+        // Speed arc colored
+        const speedPct = Math.min(taxi.currentDisplaySpeed / 300, 1);
+        const speedAngle = Math.PI * 0.75 + speedPct * Math.PI * 1.5;
+        const speedColor = speedPct > 0.8 ? '#e74c3c' : speedPct > 0.5 ? '#f1c40f' : '#2ecc71';
+        ctx.strokeStyle = speedColor;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(cx - 30, cy, r, Math.PI * 0.75, speedAngle);
+        ctx.stroke();
+
+        // Needle
+        const needleAngle = Math.PI * 0.75 + speedPct * Math.PI * 1.5;
+        ctx.strokeStyle = '#ff4444';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx - 30, cy);
+        ctx.lineTo(cx - 30 + Math.cos(needleAngle) * (r - 6), cy + Math.sin(needleAngle) * (r - 6));
+        ctx.stroke();
+
+        // Speed text
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#fff';
+        ctx.fillText(`${Math.round(taxi.currentDisplaySpeed)}`, cx - 30, cy + 12);
+        ctx.font = '8px monospace';
+        ctx.fillStyle = '#888';
+        ctx.fillText('km/h', cx - 30, cy + 22);
+
+        // Fuel gauge (right side, smaller)
+        const fx = cx + 40;
+        const fy = cy - 10;
+        const fuelPct = taxi.fuel / taxi.fuelCapacity;
+        const fuelColor = fuelPct > 0.3 ? '#2ecc71' : fuelPct > 0.15 ? '#f1c40f' : '#e74c3c';
+
+        ctx.fillStyle = '#222';
+        ctx.fillRect(fx - 8, fy - 25, 16, 50);
+        ctx.fillStyle = fuelColor;
+        ctx.fillRect(fx - 6, fy - 23 + (48 * (1 - fuelPct)), 12, 48 * fuelPct);
+        ctx.strokeStyle = '#555';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(fx - 8, fy - 25, 16, 50);
+        ctx.font = '9px sans-serif';
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.fillText('⛽', fx, fy + 33);
+
+        // Tire health indicator
+        const tireX = cx + 40;
+        const tireY = cy - 38;
+        const tirePct = taxi.tireHealth / TIRE_MAX_HEALTH;
+        const tireColor = taxi.tireBlown ? '#ff0000' : tirePct > 0.3 ? '#2ecc71' : '#f1c40f';
+        ctx.font = '10px sans-serif';
+        ctx.fillStyle = tireColor;
+        ctx.fillText('🛞', tireX, tireY);
+        ctx.font = '7px monospace';
+        ctx.fillText(`${Math.round(tirePct * 100)}%`, tireX, tireY + 9);
+
+        // Rating stars (top right corner of dashboard)
+        if (taxi.rating !== undefined) {
+            ctx.font = '9px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#FFD700';
+            const starText = taxi.rating.toFixed(1) + '⭐';
+            ctx.fillText(starText, cx - 30, cy - 42);
+        }
+
+        // Weather + surge indicator
+        if (weather) {
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#aaa';
+            const wIcon = weather.getWeatherIcon();
+            const mult = weather.getFareMultiplier(gameTime);
+            let wText = wIcon;
+            if (mult > 1) {
+                ctx.fillStyle = '#FFD700';
+                wText += ` ${mult}x`;
+            }
+            ctx.fillText(wText, cx - 85, cy - 42);
+        }
+    }
+
+    _drawPedestrians(ctx, cam, pedestrians) {
+        if (!pedestrians) return;
+        for (const ped of pedestrians) {
+            if (!cam.isVisible(ped.x - 10, ped.y - 20, 20, 20)) continue;
+            const sx = ped.x - cam.x;
+            const sy = ped.y - cam.y;
+
+            // Shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.beginPath();
+            ctx.ellipse(sx, sy + 4, 4, 2, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Body
+            ctx.fillStyle = ped.color;
+            ctx.fillRect(sx - 3, sy - 6, 6, 10);
+
+            // Head
+            ctx.fillStyle = '#FFDEAD';
+            ctx.beginPath();
+            ctx.arc(sx, sy - 9, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Jaywalker warning
+            if (ped.isJaywalker) {
+                ctx.fillStyle = '#ff4444';
+                ctx.font = '7px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('!', sx, sy - 15);
+            }
+        }
+    }
+
+    _drawBus(ctx, cam, bus, weather) {
+        const sx = bus.x - cam.x;
+        const sy = bus.y - cam.y;
+        if (!cam.isVisible(bus.x - 30, bus.y - 15, 60, 30)) return;
+        const isNight = weather && weather.isNight();
+
+        ctx.save();
+        ctx.translate(sx, sy);
+        ctx.rotate(bus.angle);
+
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(-bus.width / 2 + 3, -bus.height / 2 + 3, bus.width, bus.height);
+
+        // Bus body
+        ctx.fillStyle = bus.color;
+        ctx.fillRect(-bus.width / 2, -bus.height / 2, bus.width, bus.height);
+
+        // Windows
+        ctx.fillStyle = isNight ? '#FFFFCC88' : '#87CEEB88';
+        for (let i = 0; i < 5; i++) {
+            ctx.fillRect(-bus.width / 2 + 6 + i * 9, -bus.height / 2 + 2, 6, bus.height - 4);
+        }
+
+        // Front windshield
+        ctx.fillStyle = '#87CEEBAA';
+        ctx.fillRect(bus.width / 2 - 6, -bus.height / 2 + 2, 5, bus.height - 4);
+
+        // Headlights
+        if (isNight) {
+            ctx.fillStyle = 'rgba(255,255,200,0.08)';
+            ctx.beginPath();
+            ctx.moveTo(bus.width / 2, -bus.height / 2);
+            ctx.lineTo(bus.width / 2 + 50, -bus.height - 15);
+            ctx.lineTo(bus.width / 2 + 50, bus.height + 15);
+            ctx.lineTo(bus.width / 2, bus.height / 2);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // BUS label
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 7px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('BUS', 0, 0);
+
+        // Outline
+        ctx.strokeStyle = '#00000066';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-bus.width / 2, -bus.height / 2, bus.width, bus.height);
+
+        // Bus stop indicator when stopped
+        if (bus.isStopped) {
+            ctx.fillStyle = '#FFD700';
+            ctx.font = '10px serif';
+            ctx.fillText('🚏', 0, -bus.height / 2 - 8);
+        }
+
+        ctx.restore();
     }
 
     _drawNavWaypoint(ctx, cam, taxi, target) {
@@ -846,6 +1262,20 @@ class Renderer {
         ctx.font = '16px sans-serif';
         ctx.fillStyle = '#aaa';
         ctx.fillText(`Energy: ${Math.round((1 - taxi.fatigue / MAX_FATIGUE) * 100)}%`, this.canvas.width / 2, by + 40);
+    }
+
+    _roundedRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
     }
 
     _drawMinimap(city, taxi, aiTaxis, passengerMgr, eventMgr, trafficMgr) {
