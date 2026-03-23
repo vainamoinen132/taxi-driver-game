@@ -158,15 +158,17 @@ body {
 }
 
 .hud-item {
-    background: rgba(0,0,0,0.7);
-    padding: 6px 14px;
-    border-radius: 6px;
-    font-size: 0.95rem;
+    background: rgba(10,10,30,0.75);
+    padding: 7px 14px;
+    border-radius: 8px;
+    font-size: 0.9rem;
     display: flex;
     align-items: center;
     gap: 8px;
-    backdrop-filter: blur(4px);
+    backdrop-filter: blur(6px);
     min-width: 180px;
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
 
 .hud-label {
@@ -175,10 +177,11 @@ body {
 
 .hud-bar {
     flex: 1;
-    height: 12px;
-    background: #333;
-    border-radius: 6px;
+    height: 10px;
+    background: rgba(40,40,60,0.8);
+    border-radius: 5px;
     overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.05);
 }
 .hud-bar-fill {
     height: 100%;
@@ -203,11 +206,13 @@ body {
     align-items: flex-end;
 }
 #hud-top-right > div {
-    background: rgba(0,0,0,0.7);
-    padding: 6px 14px;
-    border-radius: 6px;
-    font-size: 0.95rem;
-    backdrop-filter: blur(4px);
+    background: rgba(10,10,30,0.75);
+    padding: 7px 14px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
 
 #hud-bottom {
@@ -222,21 +227,25 @@ body {
 }
 
 #hud-passenger-info {
-    background: rgba(0,0,0,0.8);
+    background: rgba(10,10,30,0.85);
     padding: 10px 24px;
-    border-radius: 8px;
-    font-size: 1rem;
-    border: 1px solid #f5c518;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    border: 1px solid rgba(245,197,24,0.4);
     max-width: 500px;
     text-align: center;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    backdrop-filter: blur(6px);
 }
 
 #hud-notification {
     background: rgba(231, 76, 60, 0.9);
-    padding: 8px 20px;
-    border-radius: 6px;
-    font-size: 0.95rem;
+    padding: 10px 22px;
+    border-radius: 10px;
+    font-size: 0.9rem;
     animation: notifPulse 0.5s ease;
+    box-shadow: 0 4px 16px rgba(231,76,60,0.3);
+    backdrop-filter: blur(4px);
 }
 @keyframes notifPulse {
     0% { transform: scale(0.8); opacity: 0; }
@@ -366,14 +375,16 @@ body {
     bottom: 100px;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(0,0,0,0.85);
-    padding: 10px 24px;
-    border-radius: 8px;
-    border: 1px solid #2ecc71;
+    background: rgba(10,10,30,0.9);
+    padding: 12px 28px;
+    border-radius: 10px;
+    border: 1px solid rgba(46,204,113,0.5);
     color: #2ecc71;
     font-size: 1rem;
     z-index: 15;
     animation: fadeIn 0.2s ease;
+    box-shadow: 0 4px 20px rgba(46,204,113,0.2);
+    backdrop-filter: blur(6px);
 }
 
 /* Event banner */
@@ -511,6 +522,27 @@ body {
 }
 .loc-item b {
     color: #f5c518;
+}
+
+/* Nav hint bar */
+#nav-hint {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(10,10,30,0.7);
+    padding: 5px 18px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.5);
+    z-index: 10;
+    pointer-events: none;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.06);
+    letter-spacing: 0.5px;
+}
+#nav-hint b {
+    color: #00FF88;
 }
 
 /* Scrollbar */

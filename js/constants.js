@@ -3,8 +3,8 @@
 // ============================================================
 
 const TILE_SIZE = 64;
-const MAP_COLS = 80;
-const MAP_ROWS = 60;
+const MAP_COLS = 40;
+const MAP_ROWS = 30;
 const MAP_WIDTH = MAP_COLS * TILE_SIZE;
 const MAP_HEIGHT = MAP_ROWS * TILE_SIZE;
 
@@ -156,32 +156,32 @@ const UPGRADES = {
 };
 
 // Game balance
-const FUEL_CONSUMPTION_RATE = 0.003; // per pixel moved (realistic: ~330km per tank)
-const REPAIR_COST_PER_PERCENT = 3;
-const FUEL_COST_PER_LITER = 2;
-const BASE_FARE_PER_TILE = 1.5;
-const TIP_CHANCE = 0.3;
-const TIP_RANGE = [1, 10];
-const SPEED_FINE_AMOUNT = 50;
-const SPEED_LIMIT = 200; // km/h display speed
-const THIEF_STEAL_RANGE = [20, 80];
-const ACCIDENT_DAMAGE_RANGE = [10, 35];
+const FUEL_CONSUMPTION_RATE = 0.0015; // per pixel moved — generous fuel economy
+const REPAIR_COST_PER_PERCENT = 1.5;
+const FUEL_COST_PER_LITER = 1.5;
+const BASE_FARE_PER_TILE = 2.5;
+const TIP_CHANCE = 0.45;
+const TIP_RANGE = [2, 15];
+const SPEED_FINE_AMOUNT = 25;
+const SPEED_LIMIT = 260; // km/h display speed — generous
+const THIEF_STEAL_RANGE = [10, 40];
+const ACCIDENT_DAMAGE_RANGE = [5, 15];
 
 // Time system (1 real second = X game minutes)
 const TIME_SCALE = 2; // slow realistic pace
 const DAY_START_HOUR = 6;
 
 // Passenger spawn
-const BASE_PASSENGER_SPAWN_INTERVAL = 2500; // ms
-const MAX_PASSENGERS = 25;
-const MAX_AI_TAXIS = 4;
-const MAX_NPC_CARS = 10;
+const BASE_PASSENGER_SPAWN_INTERVAL = 1800; // ms — more passengers
+const MAX_PASSENGERS = 20;
+const MAX_AI_TAXIS = 2;
+const MAX_NPC_CARS = 6;
 
 // Fatigue
 const MAX_FATIGUE = 100;
-const FATIGUE_RATE = 0.08; // per real second
-const FATIGUE_REST_RATE = 8; // recovery per real second at home
-const FATIGUE_PENALTY_THRESHOLD = 75; // above this, driving gets harder
+const FATIGUE_RATE = 0.03; // per real second — much slower
+const FATIGUE_REST_RATE = 15; // recovery per real second at home — faster rest
+const FATIGUE_PENALTY_THRESHOLD = 85; // above this, driving gets harder — more forgiving
 
 // Event durations (game minutes)
 const EVENT_DURATION = 60;
@@ -197,15 +197,15 @@ const FUEL_PRICE_MAX = 3.5;
 const FUEL_PRICE_FLUCTUATION = 0.3; // +/- per hour
 
 // Daily expenses
-const DAILY_INSURANCE = 20;
-const DAILY_PARKING_FEE = 10;
-const DAILY_PHONE_PLAN = 5;
+const DAILY_INSURANCE = 8;
+const DAILY_PARKING_FEE = 4;
+const DAILY_PHONE_PLAN = 3;
 
 // Tire system
 const TIRE_MAX_HEALTH = 100;
-const TIRE_WEAR_RATE = 0.002;   // per pixel moved
-const TIRE_RAIN_WEAR_MULT = 1.5;
-const TIRE_BLOWOUT_PULL = 1.5;  // steering pull when blown
+const TIRE_WEAR_RATE = 0.0008;  // per pixel moved — slower wear
+const TIRE_RAIN_WEAR_MULT = 1.2;
+const TIRE_BLOWOUT_PULL = 0.8;  // steering pull when blown — manageable
 
 // Passenger rating
 const RATING_INITIAL = 4.0;
@@ -223,12 +223,12 @@ const LUGGAGE_LOAD_TIME = 2.0; // seconds
 const LUGGAGE_TIP_BONUS = 1.5;
 
 // Pedestrians
-const MAX_PEDESTRIANS = 30;
+const MAX_PEDESTRIANS = 15;
 const PEDESTRIAN_SPEED = 25;
-const PEDESTRIAN_HIT_FINE = 200;
+const PEDESTRIAN_HIT_FINE = 75;
 
 // Buses
-const MAX_BUSES = 3;
+const MAX_BUSES = 2;
 const BUS_SPEED = 35;
 const BUS_STOP_TIME = 4; // seconds at each stop
 

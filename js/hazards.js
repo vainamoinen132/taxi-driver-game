@@ -17,7 +17,7 @@ class HazardManager {
         // Place cameras at ~30% of intersections
         for (const rRow of this.city.horizontalRoads) {
             for (const cCol of this.city.verticalRoads) {
-                if (Math.random() < 0.3) {
+                if (Math.random() < 0.1) {
                     this.speedCameras.push({
                         x: cCol * TILE_SIZE + TILE_SIZE,
                         y: rRow * TILE_SIZE + TILE_SIZE,
@@ -42,7 +42,7 @@ class HazardManager {
                 const fine = SPEED_FINE_AMOUNT + Math.floor((taxi.currentDisplaySpeed - SPEED_LIMIT) * 0.5);
                 taxi.money -= fine;
                 taxi.totalFines++;
-                cam.cooldown = 10; // 10 seconds before same camera can fine again
+                cam.cooldown = 30; // 30 seconds before same camera can fine again
                 this.addNotification(`📸 Speed fine! -${formatMoney(fine)} (${Math.floor(taxi.currentDisplaySpeed)} km/h)`, 'danger');
                 taxi.flashTimer = 0.5;
                 taxi.flashColor = '#ff4444';
@@ -52,13 +52,13 @@ class HazardManager {
         // Random accident chance (very rare, based on speed and mileage)
         this.accidentCooldown -= dt;
         if (this.accidentCooldown <= 0 && taxi.invulnTimer <= 0) {
-            const accidentChance = (taxi.currentDisplaySpeed / 1000) * (taxi.totalKm / 100) * dt * 0.01;
-            if (Math.random() < accidentChance && taxi.currentDisplaySpeed > 80) {
+            const accidentChance = (taxi.currentDisplaySpeed / 2000) * (taxi.totalKm / 200) * dt * 0.003;
+            if (Math.random() < accidentChance && taxi.currentDisplaySpeed > 150) {
                 const dmg = rand(ACCIDENT_DAMAGE_RANGE[0], ACCIDENT_DAMAGE_RANGE[1]);
                 taxi.takeDamage(dmg);
                 taxi.speed *= 0.1;
                 taxi.invulnTimer = 3;
-                this.accidentCooldown = 30;
+                this.accidentCooldown = 90;
                 this.addNotification(`💥 Accident! Car damaged! (-${Math.floor(dmg)}% health)`, 'danger');
             }
         }

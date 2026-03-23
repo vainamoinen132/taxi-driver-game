@@ -26,28 +26,37 @@
             <div class="info-content">
                 <div class="info-section">
                     <h3>🎮 Controls</h3>
-                    <p><b>W/S</b> - Accelerate / Brake &nbsp; <b>A/D</b> - Steer</p>
-                    <p><b>SPACE</b> - Pick up / Drop off passenger</p>
-                    <p><b>E</b> - Interact (park in the lot first!)</p>
-                    <p><b>F</b> - Open ride-hailing app (accept orders)</p>
-                    <p><b>1</b> - Navigate to Home &nbsp; <b>2</b> - Navigate to Gas Station</p>
-                    <p><b>3</b> - Navigate to Mechanic &nbsp; <b>4</b> - Navigate to Hospital</p>
-                    <p><b>0</b> - Clear navigation</p>
-                    <p><b>H</b> - Horn &nbsp; <b>M</b> - Minimap &nbsp; <b>N</b> - Sound</p>
-                    <p><b>T</b> - Emergency tow &nbsp; <b>ESC</b> - Pause</p>
+                    <p><b>W/S</b> or <b>↑/↓</b> — Accelerate / Brake</p>
+                    <p><b>A/D</b> or <b>←/→</b> — Steer</p>
+                    <p><b>SPACE</b> — Pick up / Drop off passenger</p>
+                    <p><b>E</b> — Interact with buildings (park in lot first)</p>
+                    <p><b>F</b> — Open ride-hailing phone app</p>
+                    <p><b>H</b> — Horn &nbsp; <b>M</b> — Minimap &nbsp; <b>N</b> — Sound</p>
+                    <p><b>ESC</b> — Pause &amp; Upgrades</p>
+                </div>
+                <div class="info-section" style="background:rgba(0,255,136,0.08); border-left:3px solid #00FF88; padding-left:12px;">
+                    <h3>🧭 Quick Navigation (press anytime!)</h3>
+                    <p><b>1</b> — Navigate to <b>Home</b> 🏡</p>
+                    <p><b>2</b> — Navigate to nearest <b>Gas Station</b> ⛽</p>
+                    <p><b>3</b> — Navigate to nearest <b>Mechanic</b> 🔧</p>
+                    <p><b>4</b> — Navigate to nearest <b>Hospital</b> 🏥</p>
+                    <p><b>0</b> — Clear navigation</p>
+                    <p style="color:#aaa; font-size:0.85em;">A green arrow on screen will guide you to your destination!</p>
                 </div>
                 <div class="info-section">
-                    <h3>🚕 Gameplay</h3>
-                    <p>Drive around the city, pick up passengers waiting on the <b>sidewalk</b> (marked with 🧍), and deliver them to their destinations (marked with 📍).</p>
-                    <p>Earn money for each fare. Park in the <b>parking lot</b> (marked P) next to buildings to refuel ⛽, repair 🔧, or rest at home 🏡.</p>
+                    <h3>🚕 How to Play</h3>
+                    <p>Drive around the city and pick up passengers on the <b>sidewalk</b>. Deliver them and earn fares!</p>
+                    <p>Park in <b>parking lots</b> (marked P) next to buildings, then press <b>E</b> to refuel ⛽, repair 🔧, or rest 🏡.</p>
+                    <p>⭐ <b>VIP passengers</b> pay 3.5x more! 🧳 Some have luggage (short loading wait, bigger tip).</p>
+                    <p>Weather changes dynamically — rain and night increase demand and fares!</p>
                 </div>
                 <div class="info-section">
-                    <h3>⚠️ Watch Out For</h3>
-                    <p>Speed cameras, rival taxis, thieves disguised as passengers, and random accidents! Keep your car maintained as mileage adds up.</p>
-                </div>
-                <div class="info-section">
-                    <h3>🏆 Goal</h3>
-                    <p>Earn as much money as possible! Upgrade your taxi, survive the city, and become the ultimate taxi driver.</p>
+                    <h3>🏆 Tips</h3>
+                    <p>• Press <b>2</b> when fuel is low — follow the green arrow to the nearest gas station</p>
+                    <p>• Higher star rating = bigger tips from passengers</p>
+                    <p>• Check the phone app (<b>F</b>) for bonus ride orders</p>
+                    <p>• Watch for city events — surge pricing means big money!</p>
+                    <p>• Upgrade your taxi from the pause menu (ESC) for better performance</p>
                 </div>
             </div>
             <button id="btn-back-menu" class="menu-btn">Back to Menu</button>
@@ -60,6 +69,7 @@
 
         <!-- HUD -->
         <div id="hud">
+            <div id="nav-hint">NAV: <b>1</b> Home &nbsp; <b>2</b> Gas ⛽ &nbsp; <b>3</b> Mechanic 🔧 &nbsp; <b>4</b> Hospital 🏥 &nbsp; <b>0</b> Clear</div>
             <div id="hud-top-left">
                 <div class="hud-item" id="hud-money">💰 $<span>500</span></div>
                 <div class="hud-item" id="hud-fuel">

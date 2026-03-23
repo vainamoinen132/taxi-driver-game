@@ -86,6 +86,9 @@ class Game {
         this._pendingPickup = null;
         this._tireWarned = false;
         this._blowoutNotified = false;
+        this._fuelWarned = false;
+        this._fatigueWarned60 = false;
+        this._fatigueWarned85 = false;
 
         // Create HUD
         this.hud = new HUD();
@@ -243,6 +246,20 @@ class Game {
             this.hazardMgr.addNotification('💥 TIRE BLOWOUT! Car pulling to one side. Get to a mechanic!', 'danger');
         } else if (!this.taxi.tireBlown) {
             this._blowoutNotified = false;
+        }
+
+        // Low fuel warning with nav suggestion
+        const fuelPct = (this.taxi.fuel / this.taxi.fuelCapacity) * 100;
+        if (fuelPct < 20 && !this._fuelWarned) {
+            this._fuelWarned = true;
+            this.hazardMgr.addNotification('⛽ Fuel low! Press 2 to navigate to nearest gas station.', 'warning');
+        } else if (fuelPct >= 20) {
+            this._fuelWarned = false;
+        }
+        // Auto-navigate to gas station when critically low
+        if (fuelPct < 8 && !this.taxi.navTarget) {
+            this._setNavTo(BUILDING_TYPE.GAS_STATION, '⛽ Gas Station');
+            this.hazardMgr.addNotification('⛽ CRITICAL FUEL! Auto-navigating to gas station!', 'danger');
         }
 
         // Fatigue warnings

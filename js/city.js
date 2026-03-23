@@ -21,11 +21,11 @@ class City {
         this.verticalRoads = [];
 
         // Major horizontal roads
-        for (let r = 4; r < MAP_ROWS - 3; r += randInt(7, 10)) {
+        for (let r = 4; r < MAP_ROWS - 3; r += randInt(5, 7)) {
             this.horizontalRoads.push(r);
         }
         // Major vertical roads
-        for (let c = 4; c < MAP_COLS - 3; c += randInt(7, 10)) {
+        for (let c = 4; c < MAP_COLS - 3; c += randInt(5, 7)) {
             this.verticalRoads.push(c);
         }
 
@@ -82,6 +82,9 @@ class City {
         // Add a few park areas
         this._addParks();
 
+        // Add a small pond/lake for visual interest
+        this._addWaterFeature();
+
         // Add highway loop around outer edge of map
         this._addHighway();
 
@@ -91,6 +94,35 @@ class City {
             for (let c = 0; c < MAP_COLS; c++) {
                 if (this.tiles[r][c] === TILE.SIDEWALK) {
                     this.sidewalkTiles.push({ col: c, row: r });
+                }
+            }
+        }
+    }
+
+    _addWaterFeature() {
+        // Place 1-2 small ponds in grass areas for visual variety
+        const pondCount = randInt(1, 2);
+        for (let p = 0; p < pondCount; p++) {
+            const pw = randInt(2, 4);
+            const ph = randInt(2, 3);
+            let placed = false;
+            for (let attempt = 0; attempt < 80 && !placed; attempt++) {
+                const sr = randInt(5, MAP_ROWS - ph - 5);
+                const sc = randInt(5, MAP_COLS - pw - 5);
+                // Check all tiles are grass
+                let ok = true;
+                for (let dr = 0; dr < ph && ok; dr++) {
+                    for (let dc = 0; dc < pw && ok; dc++) {
+                        if (this.tiles[sr + dr][sc + dc] !== TILE.GRASS) ok = false;
+                    }
+                }
+                if (ok) {
+                    for (let dr = 0; dr < ph; dr++) {
+                        for (let dc = 0; dc < pw; dc++) {
+                            this.tiles[sr + dr][sc + dc] = TILE.WATER;
+                        }
+                    }
+                    placed = true;
                 }
             }
         }
@@ -145,19 +177,13 @@ class City {
         const essentialTypes = [
             BUILDING_TYPE.HOME,
             BUILDING_TYPE.STADIUM,
-            BUILDING_TYPE.CONCERT_HALL,
-            BUILDING_TYPE.HOSPITAL,
             BUILDING_TYPE.HOSPITAL,
             BUILDING_TYPE.GAS_STATION,
             BUILDING_TYPE.GAS_STATION,
             BUILDING_TYPE.GAS_STATION,
-            BUILDING_TYPE.GAS_STATION,
-            BUILDING_TYPE.GAS_STATION,
-            BUILDING_TYPE.MECHANIC,
             BUILDING_TYPE.MECHANIC,
             BUILDING_TYPE.MECHANIC,
             BUILDING_TYPE.POLICE,
-            BUILDING_TYPE.SCHOOL,
             BUILDING_TYPE.SCHOOL,
             BUILDING_TYPE.MALL,
             BUILDING_TYPE.BANK,
@@ -389,12 +415,13 @@ class City {
     _addParks() {
         // Convert a few grass areas to park
         let parkCount = 0;
-        for (let r = 0; r < MAP_ROWS && parkCount < 5; r++) {
-            for (let c = 0; c < MAP_COLS && parkCount < 5; c++) {
-                if (this.tiles[r][c] === TILE.GRASS && Math.random() < 0.003) {
+        const maxParks = Math.max(2, Math.floor(MAP_COLS * MAP_ROWS / 400));
+        for (let r = 0; r < MAP_ROWS && parkCount < maxParks; r++) {
+            for (let c = 0; c < MAP_COLS && parkCount < maxParks; c++) {
+                if (this.tiles[r][c] === TILE.GRASS && Math.random() < 0.005) {
                     // Make a small park
-                    const pw = randInt(3, 5);
-                    const ph = randInt(3, 5);
+                    const pw = randInt(2, 4);
+                    const ph = randInt(2, 3);
                     let valid = true;
                     for (let pr = r; pr < r + ph && pr < MAP_ROWS && valid; pr++) {
                         for (let pc = c; pc < c + pw && pc < MAP_COLS && valid; pc++) {

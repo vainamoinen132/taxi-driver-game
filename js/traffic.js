@@ -223,7 +223,7 @@ class NpcCar {
         // Respawn on a road tile that is far from the player (no popping up in face)
         for (let attempt = 0; attempt < 50; attempt++) {
             const pos = this.city.getRandomRoadPosition();
-            if (dist(pos.x, pos.y, playerTaxi.x, playerTaxi.y) > TILE_SIZE * 15) {
+            if (dist(pos.x, pos.y, playerTaxi.x, playerTaxi.y) > TILE_SIZE * 8) {
                 this.x = pos.x;
                 this.y = pos.y;
                 this.speed = 0;
@@ -486,7 +486,7 @@ class TrafficManager {
             let spawned = false;
             for (let attempt = 0; attempt < 20; attempt++) {
                 const pos = this.city.getRandomRoadPosition();
-                if (dist(pos.x, pos.y, playerTaxi.x, playerTaxi.y) > TILE_SIZE * 15) {
+                if (dist(pos.x, pos.y, playerTaxi.x, playerTaxi.y) > TILE_SIZE * 8) {
                     this.cars.push(new NpcCar(pos.x, pos.y, this.city));
                     spawned = true;
                     break;
@@ -500,7 +500,7 @@ class TrafficManager {
             if (this.city.sidewalkTiles && this.city.sidewalkTiles.length > 0) {
                 const tile = randChoice(this.city.sidewalkTiles);
                 const pos = tileToPixel(tile.col, tile.row);
-                if (dist(pos.x, pos.y, playerTaxi.x, playerTaxi.y) > TILE_SIZE * 10) {
+                if (dist(pos.x, pos.y, playerTaxi.x, playerTaxi.y) > TILE_SIZE * 6) {
                     this.pedestrians.push(new Pedestrian(pos.x, pos.y, this.city));
                 }
             }
@@ -527,7 +527,7 @@ class TrafficManager {
         // Remove distant pedestrians and respawn
         for (let i = this.pedestrians.length - 1; i >= 0; i--) {
             const ped = this.pedestrians[i];
-            if (dist(ped.x, ped.y, playerTaxi.x, playerTaxi.y) > TILE_SIZE * 40) {
+            if (dist(ped.x, ped.y, playerTaxi.x, playerTaxi.y) > TILE_SIZE * 20) {
                 this.pedestrians.splice(i, 1);
             }
         }
