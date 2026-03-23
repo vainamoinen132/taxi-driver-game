@@ -18,6 +18,7 @@ const TILE = {
     BUILDING: 5,
     WATER: 6,
     PARK: 7,
+    PARKING: 8,
 };
 
 // Building types

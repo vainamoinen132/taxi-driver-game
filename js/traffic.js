@@ -195,7 +195,7 @@ class NpcCar {
         const tile = pixelToTile(newX, newY);
         if (tile.row >= 0 && tile.row < MAP_ROWS && tile.col >= 0 && tile.col < MAP_COLS) {
             const t = this.city.tiles[tile.row][tile.col];
-            if (t === TILE.ROAD_H || t === TILE.ROAD_V || t === TILE.ROAD_CROSS || t === TILE.SIDEWALK) {
+            if (t === TILE.ROAD_H || t === TILE.ROAD_V || t === TILE.ROAD_CROSS || t === TILE.SIDEWALK || t === TILE.PARKING) {
                 this.x = newX;
                 this.y = newY;
             } else {

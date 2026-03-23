@@ -287,15 +287,26 @@ class Taxi {
     }
 
     getInteractionBuilding(city) {
-        // Check if near a gas station, mechanic, or home
+        // Check if taxi is on/near a parking tile belonging to a service building
+        const { col, row } = pixelToTile(this.x, this.y);
         for (const b of city.buildings) {
-            if (b.type === BUILDING_TYPE.GAS_STATION ||
-                b.type === BUILDING_TYPE.MECHANIC ||
-                b.type === BUILDING_TYPE.HOME) {
-                const d = dist(this.x, this.y, b.px, b.py);
-                if (d < TILE_SIZE * 3) {
-                    return b;
+            if (b.type !== BUILDING_TYPE.GAS_STATION &&
+                b.type !== BUILDING_TYPE.MECHANIC &&
+                b.type !== BUILDING_TYPE.HOME) continue;
+
+            // Check if on the building's parking lot
+            if (b.parkingTiles && b.parkingTiles.length > 0) {
+                for (const pt of b.parkingTiles) {
+                    if (Math.abs(col - pt.col) <= 1 && Math.abs(row - pt.row) <= 1) {
+                        return b;
+                    }
                 }
+            }
+
+            // Fallback: close to building center (for buildings without parking)
+            const d = dist(this.x, this.y, b.px, b.py);
+            if (d < TILE_SIZE * 2.5) {
+                return b;
             }
         }
         return null;

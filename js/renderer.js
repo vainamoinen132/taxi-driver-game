@@ -22,6 +22,7 @@ class Renderer {
             [TILE.BUILDING]: '#8B7355',
             [TILE.WATER]: '#4488cc',
             [TILE.PARK]: '#2d8a2d',
+            [TILE.PARKING]: '#707070',
         };
 
         // Road markings pattern
@@ -147,6 +148,35 @@ class Renderer {
                         ctx.fillStyle = '#4a9d4a';
                         ctx.fillRect(sx + 30, sy + 25, 4, 4);
                     }
+                }
+
+                // Parking lot markings
+                if (tile === TILE.PARKING) {
+                    ctx.strokeStyle = '#ffffff55';
+                    ctx.lineWidth = 1;
+                    // Draw parking bay lines
+                    const seed = (r * 73 + c * 197) % 2;
+                    if (seed === 0) {
+                        for (let lx = 8; lx < TILE_SIZE; lx += 20) {
+                            ctx.beginPath();
+                            ctx.moveTo(sx + lx, sy + 4);
+                            ctx.lineTo(sx + lx, sy + TILE_SIZE - 4);
+                            ctx.stroke();
+                        }
+                    } else {
+                        for (let ly = 8; ly < TILE_SIZE; ly += 20) {
+                            ctx.beginPath();
+                            ctx.moveTo(sx + 4, sy + ly);
+                            ctx.lineTo(sx + TILE_SIZE - 4, sy + ly);
+                            ctx.stroke();
+                        }
+                    }
+                    // P symbol in center
+                    ctx.font = 'bold 14px sans-serif';
+                    ctx.fillStyle = '#ffffff44';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('P', sx + TILE_SIZE / 2, sy + TILE_SIZE / 2);
                 }
 
                 // Park decorations

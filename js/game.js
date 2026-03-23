@@ -76,10 +76,6 @@ class Game {
         // Phone UI state
         this.showingPhone = false;
 
-        // Location picker state
-        this.showingLocPicker = false;
-        this.locPickerItems = [];
-
         // Create HUD
         this.hud = new HUD();
 
@@ -307,29 +303,23 @@ class Game {
             }
 
             // When phone is open: 1-3 accept orders
-            // When location picker is open: 1-9 pick a location
-            // Otherwise: 1=Home, 2=Gas Station picker, 3=Mechanic picker, 0=Clear
+            // Otherwise: 1=Home, 2=Gas Station, 3=Mechanic, 4=Hospital, 0=Clear
             if (this.showingPhone) {
                 if (e.key === '1') { this._acceptAppOrder(0); }
                 if (e.key === '2') { this._acceptAppOrder(1); }
                 if (e.key === '3') { this._acceptAppOrder(2); }
-            } else if (this.showingLocPicker) {
-                const idx = parseInt(e.key);
-                if (idx >= 1 && idx <= 9) {
-                    this._pickLocation(idx - 1);
-                }
-                if (e.key === '0' || e.key === 'Escape') {
-                    this._closeLocPicker();
-                }
             } else {
                 if (e.key === '1') {
                     this._setNavTo(BUILDING_TYPE.HOME, '🏡 Home');
                 }
                 if (e.key === '2') {
-                    this._openLocPicker(BUILDING_TYPE.GAS_STATION, '⛽ Gas Station');
+                    this._setNavTo(BUILDING_TYPE.GAS_STATION, '⛽ Gas Station');
                 }
                 if (e.key === '3') {
-                    this._openLocPicker(BUILDING_TYPE.MECHANIC, '🔧 Mechanic');
+                    this._setNavTo(BUILDING_TYPE.MECHANIC, '🔧 Mechanic');
+                }
+                if (e.key === '4') {
+                    this._setNavTo(BUILDING_TYPE.HOSPITAL, '🏥 Hospital');
                 }
                 if (e.key === '0') {
                     this.taxi.navTarget = null;
@@ -501,48 +491,6 @@ class Game {
         } else {
             this.hazardMgr.addNotification(`❌ No ${label} found!`, 'warning');
         }
-    }
-
-    _openLocPicker(buildingType, label) {
-        const buildings = this.city.getBuildingsOfType(buildingType);
-        if (buildings.length === 0) {
-            this.hazardMgr.addNotification(`❌ No ${label} found!`, 'warning');
-            return;
-        }
-        // Sort by distance from taxi
-        this.locPickerItems = buildings.map(b => {
-            const d = dist(this.taxi.x, this.taxi.y, b.px, b.py);
-            return { building: b, dist: d, label: label, blocks: Math.round(d / TILE_SIZE) };
-        }).sort((a, b) => a.dist - b.dist);
-
-        this.showingLocPicker = true;
-        const el = document.getElementById('loc-picker');
-        if (el) {
-            let html = `<div id="loc-picker-header">${label}s — Pick a destination <small>(0 to close)</small></div>`;
-            this.locPickerItems.forEach((item, i) => {
-                if (i >= 9) return;
-                const nearest = i === 0 ? ' (nearest)' : '';
-                html += `<div class="loc-item"><b>${i + 1}.</b> ${label} — ${item.blocks} blocks away${nearest}</div>`;
-            });
-            el.innerHTML = html;
-            el.classList.remove('hidden');
-        }
-    }
-
-    _pickLocation(index) {
-        if (index < 0 || index >= this.locPickerItems.length) return;
-        const item = this.locPickerItems[index];
-        const b = item.building;
-        this.taxi.navTarget = { x: b.px, y: b.py, label: item.label };
-        this.hazardMgr.addNotification(`🧭 Navigating to ${item.label} (${item.blocks} blocks)`, 'info');
-        this._closeLocPicker();
-    }
-
-    _closeLocPicker() {
-        this.showingLocPicker = false;
-        this.locPickerItems = [];
-        const el = document.getElementById('loc-picker');
-        if (el) el.classList.add('hidden');
     }
 
     _togglePhone() {

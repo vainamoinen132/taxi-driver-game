@@ -81,6 +81,16 @@ class City {
 
         // Add a few park areas
         this._addParks();
+
+        // Collect sidewalk tiles (after buildings/parking placed, so list is accurate)
+        this.sidewalkTiles = [];
+        for (let r = 0; r < MAP_ROWS; r++) {
+            for (let c = 0; c < MAP_COLS; c++) {
+                if (this.tiles[r][c] === TILE.SIDEWALK) {
+                    this.sidewalkTiles.push({ col: c, row: r });
+                }
+            }
+        }
     }
 
     _hasAdjacentRoad(r, c) {
@@ -253,7 +263,8 @@ class City {
                 }
             }
         }
-        this.buildings.push({
+
+        const building = {
             col, row, w, h, type,
             x: col * TILE_SIZE,
             y: row * TILE_SIZE,
@@ -261,7 +272,67 @@ class City {
             py: row * TILE_SIZE + (h * TILE_SIZE) / 2,
             width: w * TILE_SIZE,
             height: h * TILE_SIZE,
-        });
+            parkingTiles: [],
+        };
+        this.buildings.push(building);
+
+        // Add parking lot next to service buildings
+        const needsParking = [
+            BUILDING_TYPE.GAS_STATION, BUILDING_TYPE.MECHANIC,
+            BUILDING_TYPE.HOSPITAL, BUILDING_TYPE.HOME,
+            BUILDING_TYPE.MALL, BUILDING_TYPE.STADIUM,
+            BUILDING_TYPE.CONCERT_HALL, BUILDING_TYPE.HOTEL,
+        ];
+        if (needsParking.includes(type)) {
+            this._addParkingLot(building);
+        }
+    }
+
+    _addParkingLot(building) {
+        // Try each side of the building for a strip of parking (prefer side nearest road)
+        const sides = [
+            { dr: -1, dc: 0, label: 'top' },
+            { dr: 1, dc: 0, label: 'bottom' },
+            { dc: -1, dr: 0, label: 'left' },
+            { dc: 1, dr: 0, label: 'right' },
+        ];
+        // Shuffle so parking placement varies
+        sides.sort(() => Math.random() - 0.5);
+
+        for (const side of sides) {
+            const tiles = [];
+            let valid = true;
+
+            if (side.label === 'top' || side.label === 'bottom') {
+                // Horizontal strip above or below building
+                const r = side.label === 'top' ? building.row - 1 : building.row + building.h;
+                if (r < 0 || r >= MAP_ROWS) continue;
+                for (let c = building.col; c < building.col + building.w; c++) {
+                    if (c < 0 || c >= MAP_COLS) { valid = false; break; }
+                    const t = this.tiles[r][c];
+                    if (t !== TILE.GRASS && t !== TILE.SIDEWALK) { valid = false; break; }
+                    tiles.push({ r, c });
+                }
+            } else {
+                // Vertical strip left or right of building
+                const c = side.label === 'left' ? building.col - 1 : building.col + building.w;
+                if (c < 0 || c >= MAP_COLS) continue;
+                for (let r = building.row; r < building.row + building.h; r++) {
+                    if (r < 0 || r >= MAP_ROWS) { valid = false; break; }
+                    const t = this.tiles[r][c];
+                    if (t !== TILE.GRASS && t !== TILE.SIDEWALK) { valid = false; break; }
+                    tiles.push({ r, c });
+                }
+            }
+
+            if (valid && tiles.length > 0) {
+                for (const { r, c } of tiles) {
+                    this.tiles[r][c] = TILE.PARKING;
+                    building.parkingTiles.push({ row: r, col: c });
+                }
+                return; // one side is enough
+            }
+        }
     }
 
     _fillBlockWithBuildings(block, zone) {
@@ -323,12 +394,16 @@ class City {
     }
 
     getRandomSidewalkPosition() {
-        // Try to find a sidewalk tile (adjacent to road but not on it)
+        // Pick from pre-collected sidewalk tiles (guaranteed to be actual sidewalk)
+        if (this.sidewalkTiles && this.sidewalkTiles.length > 0) {
+            const tile = randChoice(this.sidewalkTiles);
+            return tileToPixel(tile.col, tile.row);
+        }
+        // Fallback: search from road tiles
         for (let attempt = 0; attempt < 60; attempt++) {
             const roadTile = randChoice(this.roadTiles);
             const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
-            const shuffled = dirs.sort(() => Math.random() - 0.5);
-            for (const [dr, dc] of shuffled) {
+            for (const [dr, dc] of dirs) {
                 const r = roadTile.row + dr;
                 const c = roadTile.col + dc;
                 if (r >= 0 && r < MAP_ROWS && c >= 0 && c < MAP_COLS) {
@@ -338,23 +413,27 @@ class City {
                 }
             }
         }
-        // Fallback to road if no sidewalk found
         return this.getRandomRoadPosition();
     }
 
     getSidewalkNearBuilding(building) {
-        // Find a sidewalk tile near a building
+        // Find a sidewalk tile near a building (search outward)
         for (let radius = 1; radius < 6; radius++) {
+            const candidates = [];
             for (let dr = -radius; dr <= radius; dr++) {
                 for (let dc = -radius; dc <= radius; dc++) {
                     const r = building.row + dr;
                     const c = building.col + dc;
                     if (r >= 0 && r < MAP_ROWS && c >= 0 && c < MAP_COLS) {
                         if (this.tiles[r][c] === TILE.SIDEWALK) {
-                            return tileToPixel(c, r);
+                            candidates.push({ col: c, row: r });
                         }
                     }
                 }
+            }
+            if (candidates.length > 0) {
+                const pick = randChoice(candidates);
+                return tileToPixel(pick.col, pick.row);
             }
         }
         return this.getRoadNearBuilding(building);
