@@ -90,6 +90,11 @@ class Game {
         this._fatigueWarned60 = false;
         this._fatigueWarned85 = false;
 
+        // Gradual refueling state
+        this._isRefueling = false;
+        this._refuelPrice = 0;
+        this._refuelTotalCost = 0;
+
         // Create HUD
         this.hud = new HUD();
 
@@ -281,6 +286,38 @@ class Game {
             this.taxi.speed *= 0.95;
         }
 
+        // Gradual refueling while E is held at gas station
+        if (this._isRefueling) {
+            const building = this.taxi.nearBuilding;
+            const eHeld = this.keysDown['e'] || this.keysDown['E'];
+            if (!eHeld || !building || building.type !== BUILDING_TYPE.GAS_STATION || Math.abs(this.taxi.speed) > 5) {
+                // Stop refueling
+                if (this._refuelTotalCost > 0) {
+                    this.hazardMgr.addNotification(`⛽ Refueled! Total: ${formatMoney(this._refuelTotalCost)}`, 'info');
+                }
+                this._isRefueling = false;
+                this._refuelTotalCost = 0;
+            } else if (this.taxi.fuel < this.taxi.fuelCapacity && this.taxi.money > 0) {
+                // Fill at rate: full tank in ~10 seconds
+                const fillRate = (this.taxi.fuelCapacity / 10) * dt;
+                const canAfford = this.taxi.money / this._refuelPrice;
+                const needed = this.taxi.fuelCapacity - this.taxi.fuel;
+                const toAdd = Math.min(fillRate, canAfford, needed);
+                const cost = toAdd * this._refuelPrice;
+                this.taxi.fuel += toAdd;
+                this.taxi.money -= cost;
+                this._refuelTotalCost += cost;
+                this.taxi.speed = 0; // keep car still while refueling
+            } else {
+                // Tank full or out of money
+                if (this._refuelTotalCost > 0) {
+                    this.hazardMgr.addNotification(`⛽ Tank ${this.taxi.fuel >= this.taxi.fuelCapacity ? 'full' : 'refueled'}! Total: ${formatMoney(this._refuelTotalCost)}`, 'info');
+                }
+                this._isRefueling = false;
+                this._refuelTotalCost = 0;
+            }
+        }
+
         // Update engine audio
         this.audio.updateEngine(this.taxi.speed, this.taxi.maxSpeed);
 
@@ -409,34 +446,26 @@ class Game {
                 this.audio.toggle();
             }
 
+            // Center camera on taxi
+            if (e.key === 'c' || e.key === 'C') {
+                this.camera.snapTo(this.taxi.x, this.taxi.y);
+            }
+
             // Phone / App orders
             if (e.key === 'f' || e.key === 'F') {
                 this._togglePhone();
             }
 
-            // When phone is open: 1-3 accept orders
-            // Otherwise: 1=Home, 2=Gas Station, 3=Mechanic, 4=Hospital, 0=Clear
+            // "Take me to..." navigation menu
+            if (e.key === 'g' || e.key === 'G') {
+                this._toggleNavMenu();
+            }
+
+            // When phone is open: 1-3 accept orders (no conflict with nav)
             if (this.showingPhone) {
                 if (e.key === '1') { this._acceptAppOrder(0); }
                 if (e.key === '2') { this._acceptAppOrder(1); }
                 if (e.key === '3') { this._acceptAppOrder(2); }
-            } else {
-                if (e.key === '1') {
-                    this._setNavTo(BUILDING_TYPE.HOME, '🏡 Home');
-                }
-                if (e.key === '2') {
-                    this._setNavTo(BUILDING_TYPE.GAS_STATION, '⛽ Gas Station');
-                }
-                if (e.key === '3') {
-                    this._setNavTo(BUILDING_TYPE.MECHANIC, '🔧 Mechanic');
-                }
-                if (e.key === '4') {
-                    this._setNavTo(BUILDING_TYPE.HOSPITAL, '🏥 Hospital');
-                }
-                if (e.key === '0') {
-                    this.taxi.navTarget = null;
-                    this.hazardMgr.addNotification('🧭 Navigation cleared', 'info');
-                }
             }
         });
 
@@ -534,6 +563,9 @@ class Game {
         } else {
             const fareMultiplier = this.weather.getFareMultiplier(this.gameTime);
             const result = passenger.calculateFare(this.taxi.fareBonus, fareMultiplier, this.taxi.rideDamageTaken);
+            // Negotiation skill boosts tips by 10% per level
+            const negLvl = (this.taxi.skills && this.taxi.skills.negotiation) || 0;
+            if (negLvl > 0) result.tip = Math.round(result.tip * (1 + negLvl * 0.10));
             const total = result.fare + result.tip;
 
             if (result.message) {
@@ -570,15 +602,17 @@ class Game {
         if (Math.abs(this.taxi.speed) > 20) return;
 
         if (building.type === BUILDING_TYPE.GAS_STATION) {
-            const price = building.fuelPrice || FUEL_COST_PER_LITER;
-            const result = this.taxi.refuel(price);
-            if (result.success) {
-                this.audio.playRefuel();
-                this.hazardMgr.addNotification(
-                    `⛽ Refueled! Cost: ${formatMoney(result.cost)} ($${price.toFixed(2)}/L)`,
-                    'info'
-                );
+            if (this.taxi.fuel >= this.taxi.fuelCapacity) {
+                this.hazardMgr.addNotification('⛽ Tank is already full!', 'info');
+                return;
             }
+            // Start gradual refueling (hold E to continue)
+            this._isRefueling = true;
+            this._refuelPrice = building.fuelPrice || FUEL_COST_PER_LITER;
+            this._refuelTotalCost = 0;
+            this.audio.playRefuel();
+            this.hazardMgr.addNotification(`⛽ Hold E to refuel ($${this._refuelPrice.toFixed(2)}/L)...`, 'info');
+            return;
         } else if (building.type === BUILDING_TYPE.MECHANIC) {
             const result = this.taxi.repair();
             if (result.success) {
@@ -603,13 +637,8 @@ class Game {
                 this.hazardMgr.addNotification('🚕 Drop off your passenger first!', 'warning');
                 return;
             }
-            if (this.taxi.fatigue < 10) {
-                this.hazardMgr.addNotification('😊 You\'re not tired. Keep driving!', 'info');
-                return;
-            }
-            this.taxi.isResting = true;
             this.taxi.speed = 0;
-            this.hazardMgr.addNotification('🏡 Resting at home... Fatigue recovering.', 'info');
+            this._showHomeScreen();
         }
     }
 
@@ -821,11 +850,163 @@ class Game {
         ).join('');
     }
 
+    _toggleNavMenu() {
+        const navEl = document.getElementById('nav-menu');
+        if (!navEl) return;
+        if (!navEl.classList.contains('hidden')) {
+            navEl.classList.add('hidden');
+            return;
+        }
+        const destinations = [
+            { type: BUILDING_TYPE.HOME, label: '🏡 Home', key: '1' },
+            { type: BUILDING_TYPE.GAS_STATION, label: '⛽ Gas Station', key: '2' },
+            { type: BUILDING_TYPE.MECHANIC, label: '🔧 Mechanic', key: '3' },
+            { type: BUILDING_TYPE.HOSPITAL, label: '🏥 Hospital', key: '4' },
+            { type: BUILDING_TYPE.MALL, label: '🛒 Mall', key: '5' },
+            { type: BUILDING_TYPE.POLICE, label: '🚔 Police', key: '6' },
+        ];
+        let html = '<div id="nav-menu-header">🧭 Take me to... <small>(G to close)</small></div>';
+        for (const d of destinations) {
+            const b = this.city.getNearestBuildingOfType(this.taxi.x, this.taxi.y, d.type);
+            const distBlocks = b ? Math.round(dist(this.taxi.x, this.taxi.y, b.px, b.py) / TILE_SIZE) : '?';
+            html += `<div class="nav-menu-item" data-type="${d.type}" data-label="${d.label}">
+                <span>${d.label}</span>
+                <span class="nav-menu-dist">${distBlocks} blocks</span>
+            </div>`;
+        }
+        html += `<div class="nav-menu-item nav-menu-clear" data-action="clear">
+            <span>❌ Clear Navigation</span>
+        </div>`;
+        navEl.innerHTML = html;
+        navEl.classList.remove('hidden');
+
+        // Bind click events
+        navEl.querySelectorAll('.nav-menu-item').forEach(item => {
+            item.style.pointerEvents = 'all';
+            item.style.cursor = 'pointer';
+            item.addEventListener('click', () => {
+                if (item.dataset.action === 'clear') {
+                    this.taxi.navTarget = null;
+                    this.hazardMgr.addNotification('🧭 Navigation cleared', 'info');
+                } else {
+                    this._setNavTo(item.dataset.type, item.dataset.label);
+                }
+                navEl.classList.add('hidden');
+            });
+        });
+    }
+
+    _showHomeScreen() {
+        this.paused = true;
+        const overlay = document.getElementById('home-screen');
+        if (!overlay) return;
+
+        // Calculate day summary
+        const dayEarnings = this.taxi.totalEarnings - (this._dayStartEarnings || 0);
+        const dayFares = this.taxi.totalFares - (this._dayStartFares || 0);
+        const expenses = DAILY_INSURANCE + DAILY_PARKING_FEE + DAILY_PHONE_PLAN;
+
+        // Skills / perks (persistent bonuses bought at home)
+        if (!this.taxi.skills) {
+            this.taxi.skills = {
+                negotiation: 0,  // +tip %
+                navigation: 0,   // minimap zoom
+                endurance: 0,    // fatigue slower
+                mechanics: 0,    // slower wear
+            };
+        }
+        const sk = this.taxi.skills;
+
+        const skillDefs = [
+            { key: 'negotiation', name: '💬 Negotiation', desc: '+10% tips per level', cost: [100, 250, 500], max: 3 },
+            { key: 'navigation', name: '🧭 Navigation', desc: 'Wider minimap + route hints', cost: [80, 200, 400], max: 3 },
+            { key: 'endurance', name: '💪 Endurance', desc: 'Fatigue builds 15% slower/lvl', cost: [120, 300, 600], max: 3 },
+            { key: 'mechanics', name: '🔧 Mechanics', desc: 'Tire/car wear 15% slower/lvl', cost: [100, 250, 500], max: 3 },
+        ];
+
+        let skillsHtml = '';
+        for (const s of skillDefs) {
+            const lvl = sk[s.key] || 0;
+            const nextCost = lvl < s.max ? s.cost[lvl] : null;
+            const canBuy = nextCost && this.taxi.money >= nextCost;
+            const stars = '⭐'.repeat(lvl) + '☆'.repeat(s.max - lvl);
+            skillsHtml += `<div class="home-skill">
+                <div><b>${s.name}</b> ${stars}</div>
+                <div style="color:#aaa;font-size:0.8rem">${s.desc}</div>
+                ${nextCost ? `<button class="upgrade-btn home-skill-btn" data-skill="${s.key}" ${canBuy ? '' : 'disabled'}>
+                    ${canBuy ? `Learn - ${formatMoney(nextCost)}` : `Need ${formatMoney(nextCost)}`}
+                </button>` : '<span style="color:#2ecc71">MAX</span>'}
+            </div>`;
+        }
+
+        overlay.innerHTML = `
+            <div class="overlay-content wide home-content">
+                <h2>🏡 Home — End of Day ${this.taxi.day}</h2>
+                <div class="home-grid">
+                    <div class="home-section">
+                        <h3>📊 Day Summary</h3>
+                        <div class="stat-row"><span>Fares completed</span><span>${dayFares}</span></div>
+                        <div class="stat-row"><span>Earnings</span><span style="color:#2ecc71">${formatMoney(dayEarnings)}</span></div>
+                        <div class="stat-row"><span>Daily expenses</span><span style="color:#e74c3c">-${formatMoney(expenses)}</span></div>
+                        <div class="stat-row"><span>Balance</span><span style="color:#f5c518">${formatMoney(this.taxi.money)}</span></div>
+                        <div class="stat-row"><span>Rating</span><span>${'⭐'.repeat(Math.round(this.taxi.rating))}${'☆'.repeat(5 - Math.round(this.taxi.rating))} (${this.taxi.rating.toFixed(1)})</span></div>
+                    </div>
+                    <div class="home-section">
+                        <h3>📚 Skills & Training</h3>
+                        ${skillsHtml}
+                    </div>
+                </div>
+                <div style="margin-top:16px; display:flex; gap:12px; justify-content:center;">
+                    <button class="menu-btn" id="home-rest-btn">😴 Rest & Sleep (restore energy)</button>
+                    <button class="menu-btn primary" id="home-nextday-btn">☀️ Start Day ${this.taxi.day + 1}</button>
+                </div>
+            </div>
+        `;
+        overlay.classList.remove('hidden');
+
+        // Bind skill buttons
+        overlay.querySelectorAll('.home-skill-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const key = btn.dataset.skill;
+                const def = skillDefs.find(s => s.key === key);
+                const lvl = sk[key] || 0;
+                if (lvl < def.max && this.taxi.money >= def.cost[lvl]) {
+                    this.taxi.money -= def.cost[lvl];
+                    sk[key] = lvl + 1;
+                    this._showHomeScreen(); // refresh
+                }
+            });
+        });
+
+        // Rest button
+        document.getElementById('home-rest-btn').addEventListener('click', () => {
+            this.taxi.fatigue = 0;
+            this.taxi.isResting = false;
+            this.hazardMgr.addNotification('😴 You slept well! Energy fully restored.', 'info');
+            this._showHomeScreen(); // refresh to show updated state
+        });
+
+        // Next day button
+        document.getElementById('home-nextday-btn').addEventListener('click', () => {
+            this.taxi.fatigue = 0;
+            this.taxi.isResting = false;
+            this.taxi.day++;
+            this._dayStartEarnings = this.taxi.totalEarnings;
+            this._dayStartFares = this.taxi.totalFares;
+            this.gameTime = DAY_START_HOUR * 60; // reset to morning
+            overlay.classList.add('hidden');
+            this.paused = false;
+            this.hazardMgr.addNotification(`☀️ Day ${this.taxi.day} begins! Good luck!`, 'info');
+        });
+    }
+
     quit() {
         this.running = false;
         this.paused = false;
         document.getElementById('pause-menu').classList.add('hidden');
         document.getElementById('garage-menu').classList.add('hidden');
         document.getElementById('stats-menu').classList.add('hidden');
+        const homeScreen = document.getElementById('home-screen');
+        if (homeScreen) homeScreen.classList.add('hidden');
     }
 }

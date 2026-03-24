@@ -12,18 +12,18 @@ class Renderer {
         this.resize();
         window.addEventListener('resize', () => this.resize());
 
-        // Pre-render tile colors
+        // Pre-render tile colors (clean city style)
         this.tileColors = {
-            [TILE.GRASS]: '#4a9e4a',
-            [TILE.ROAD_H]: '#606060',
-            [TILE.ROAD_V]: '#606060',
-            [TILE.ROAD_CROSS]: '#6a6a6a',
-            [TILE.SIDEWALK]: '#b8b0a0',
-            [TILE.BUILDING]: '#9B8B75',
-            [TILE.WATER]: '#5599dd',
-            [TILE.PARK]: '#3aaf3a',
-            [TILE.PARKING]: '#787878',
-            [TILE.HIGHWAY]: '#505050',
+            [TILE.GRASS]: '#7bc558',
+            [TILE.ROAD_H]: '#8a8a8a',
+            [TILE.ROAD_V]: '#8a8a8a',
+            [TILE.ROAD_CROSS]: '#909090',
+            [TILE.SIDEWALK]: '#d4ccbc',
+            [TILE.BUILDING]: '#c0b8a8',
+            [TILE.WATER]: '#6bb8e8',
+            [TILE.PARK]: '#6dce55',
+            [TILE.PARKING]: '#999999',
+            [TILE.HIGHWAY]: '#707070',
         };
 
         // Road markings pattern
@@ -164,31 +164,24 @@ class Renderer {
                 ctx.fillStyle = this.tileColors[tile] || '#4a9e4a';
                 ctx.fillRect(sx, sy, TILE_SIZE + 1, TILE_SIZE + 1);
 
-                // Grass — flowers, varied greens, tiny bushes
+                // Grass — varied greens, flowers, occasional trees
                 if (tile === TILE.GRASS) {
                     // Subtle shade variation
-                    if (seed < 35) {
-                        ctx.fillStyle = seed < 15 ? '#3e8e3e' : '#56b856';
-                        ctx.fillRect(sx + (seed % 40) + 5, sy + ((seed * 3) % 40) + 5, 4, 4);
+                    if (seed < 30) {
+                        ctx.fillStyle = seed < 12 ? '#6aad48' : '#88d468';
+                        ctx.fillRect(sx + (seed % 40) + 5, sy + ((seed * 3) % 40) + 5, 6, 4);
                     }
                     // Small flowers
-                    if (seed > 85) {
-                        const flowerColors = ['#FF69B4', '#FFD700', '#FF6347', '#87CEEB', '#DDA0DD'];
+                    if (seed > 88) {
+                        const flowerColors = ['#FF69B4', '#FFD700', '#FF6347', '#DDA0DD'];
                         ctx.fillStyle = flowerColors[seed % flowerColors.length];
                         ctx.beginPath();
                         ctx.arc(sx + 20 + (seed % 25), sy + 15 + ((seed * 7) % 30), 2.5, 0, Math.PI * 2);
                         ctx.fill();
                     }
-                    // Tiny grass blades
-                    if (seed > 40 && seed < 70) {
-                        ctx.strokeStyle = '#2d7a2d';
-                        ctx.lineWidth = 1;
-                        const bx = sx + 10 + (seed % 40);
-                        const by = sy + 50;
-                        ctx.beginPath();
-                        ctx.moveTo(bx, by); ctx.lineTo(bx - 2, by - 8);
-                        ctx.moveTo(bx + 4, by); ctx.lineTo(bx + 6, by - 7);
-                        ctx.stroke();
+                    // Occasional tree on grass (lush city look)
+                    if (seed > 70 && seed < 82) {
+                        this._drawTree(ctx, sx + 32, sy + 40, 16);
                     }
                 }
 
@@ -200,9 +193,9 @@ class Renderer {
                     ctx.fillRect(sx + ((waveOffset + 20) % 50), sy + 40, 14, 2);
                 }
 
-                // Sidewalk — subtle brick pattern
+                // Sidewalk — subtle brick pattern + occasional tree
                 if (tile === TILE.SIDEWALK) {
-                    ctx.strokeStyle = 'rgba(0,0,0,0.07)';
+                    ctx.strokeStyle = 'rgba(0,0,0,0.06)';
                     ctx.lineWidth = 1;
                     for (let lx = 0; lx < TILE_SIZE; lx += 16) {
                         ctx.beginPath();
@@ -215,6 +208,10 @@ class Renderer {
                         ctx.moveTo(sx, sy + ly);
                         ctx.lineTo(sx + TILE_SIZE, sy + ly);
                         ctx.stroke();
+                    }
+                    // Street tree on some sidewalks
+                    if (seed > 82 && seed < 90) {
+                        this._drawTree(ctx, sx + 32, sy + 38, 12);
                     }
                 }
 
@@ -317,9 +314,10 @@ class Renderer {
     }
 
     _drawRoadMarkings(ctx, cam, city, startCol, endCol, startRow, endRow) {
-        ctx.strokeStyle = '#FFD700';
+        // White dashed center lines
+        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
         ctx.lineWidth = 2;
-        ctx.setLineDash([12, 12]);
+        ctx.setLineDash([10, 14]);
 
         for (let r = startRow; r < endRow; r++) {
             for (let c = startCol; c < endCol; c++) {
@@ -328,7 +326,6 @@ class Renderer {
                 const sy = r * TILE_SIZE - cam.y;
 
                 if (tile === TILE.ROAD_H) {
-                    // Center line
                     ctx.beginPath();
                     ctx.moveTo(sx, sy + TILE_SIZE / 2);
                     ctx.lineTo(sx + TILE_SIZE, sy + TILE_SIZE / 2);
@@ -338,14 +335,29 @@ class Renderer {
                     ctx.moveTo(sx + TILE_SIZE / 2, sy);
                     ctx.lineTo(sx + TILE_SIZE / 2, sy + TILE_SIZE);
                     ctx.stroke();
+                } else if (tile === TILE.ROAD_CROSS) {
+                    // Crosswalk markings at intersections
+                    ctx.setLineDash([]);
+                    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+                    // Horizontal zebra stripes (top and bottom edges)
+                    for (let s = 4; s < TILE_SIZE - 4; s += 8) {
+                        ctx.fillRect(sx + s, sy + 1, 5, 4);
+                        ctx.fillRect(sx + s, sy + TILE_SIZE - 5, 5, 4);
+                    }
+                    // Vertical zebra stripes (left and right edges)
+                    for (let s = 4; s < TILE_SIZE - 4; s += 8) {
+                        ctx.fillRect(sx + 1, sy + s, 4, 5);
+                        ctx.fillRect(sx + TILE_SIZE - 5, sy + s, 4, 5);
+                    }
+                    ctx.setLineDash([10, 14]);
                 }
             }
         }
         ctx.setLineDash([]);
 
-        // Road edges
-        ctx.strokeStyle = '#ffffff44';
-        ctx.lineWidth = 1;
+        // Road edge lines (solid white curb lines)
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        ctx.lineWidth = 1.5;
         for (let r = startRow; r < endRow; r++) {
             for (let c = startCol; c < endCol; c++) {
                 const tile = city.tiles[r][c];
@@ -353,18 +365,17 @@ class Renderer {
                 const sx = c * TILE_SIZE - cam.x;
                 const sy = r * TILE_SIZE - cam.y;
 
-                // Check adjacent tiles to draw curb
                 if (r > 0 && !isRoadTile(city.tiles[r - 1][c])) {
-                    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + TILE_SIZE, sy); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(sx, sy + 1); ctx.lineTo(sx + TILE_SIZE, sy + 1); ctx.stroke();
                 }
                 if (r < MAP_ROWS - 1 && !isRoadTile(city.tiles[r + 1][c])) {
-                    ctx.beginPath(); ctx.moveTo(sx, sy + TILE_SIZE); ctx.lineTo(sx + TILE_SIZE, sy + TILE_SIZE); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(sx, sy + TILE_SIZE - 1); ctx.lineTo(sx + TILE_SIZE, sy + TILE_SIZE - 1); ctx.stroke();
                 }
                 if (c > 0 && !isRoadTile(city.tiles[r][c - 1])) {
-                    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx, sy + TILE_SIZE); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(sx + 1, sy); ctx.lineTo(sx + 1, sy + TILE_SIZE); ctx.stroke();
                 }
                 if (c < MAP_COLS - 1 && !isRoadTile(city.tiles[r][c + 1])) {
-                    ctx.beginPath(); ctx.moveTo(sx + TILE_SIZE, sy); ctx.lineTo(sx + TILE_SIZE, sy + TILE_SIZE); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(sx + TILE_SIZE - 1, sy); ctx.lineTo(sx + TILE_SIZE - 1, sy + TILE_SIZE); ctx.stroke();
                 }
             }
         }
@@ -372,82 +383,107 @@ class Renderer {
 
     _drawBuildings(ctx, cam, city, startCol, endCol, startRow, endRow) {
         for (const b of city.buildings) {
-            if (!cam.isVisible(b.x, b.y, b.width + 6, b.height + 6)) continue;
+            if (!cam.isVisible(b.x, b.y, b.width + 8, b.height + 8)) continue;
 
             const sx = b.x - cam.x;
             const sy = b.y - cam.y;
             const bw = b.width - 4;
             const bh = b.height - 4;
+            const roofH = Math.max(8, bh * 0.22);
+
+            const wallColor = BUILDING_COLORS[b.type] || '#d0c8c0';
+            const roofColor = BUILDING_ROOF_COLORS[b.type] || '#8a7a6a';
 
             // Drop shadow
-            ctx.fillStyle = 'rgba(0,0,0,0.25)';
-            ctx.fillRect(sx + 6, sy + 6, bw, bh);
+            ctx.fillStyle = 'rgba(0,0,0,0.18)';
+            ctx.fillRect(sx + 5, sy + 5, bw, bh);
 
-            // Building body with gradient
-            const color = BUILDING_COLORS[b.type] || '#9B8B75';
-            const grad = ctx.createLinearGradient(sx + 2, sy + 2, sx + 2, sy + bh);
-            grad.addColorStop(0, this._lightenColor(color, 25));
-            grad.addColorStop(1, this._darkenColor(color, 15));
-            ctx.fillStyle = grad;
+            // Building wall
+            ctx.fillStyle = wallColor;
             ctx.fillRect(sx + 2, sy + 2, bw, bh);
 
-            // Building border
-            ctx.strokeStyle = this._darkenColor(color, 30);
-            ctx.lineWidth = 1.5;
+            // Wall shading — right side slightly darker
+            ctx.fillStyle = 'rgba(0,0,0,0.06)';
+            ctx.fillRect(sx + 2 + bw * 0.7, sy + 2, bw * 0.3, bh);
+
+            // Building outline
+            ctx.strokeStyle = this._darkenColor(wallColor, 25);
+            ctx.lineWidth = 1;
             ctx.strokeRect(sx + 2, sy + 2, bw, bh);
 
-            // Roof highlight strip
-            ctx.fillStyle = 'rgba(255,255,255,0.18)';
-            ctx.fillRect(sx + 2, sy + 2, bw, 5);
+            // Colored roof
+            ctx.fillStyle = roofColor;
+            ctx.fillRect(sx + 1, sy + 1, bw + 2, roofH);
+            // Roof highlight
+            ctx.fillStyle = 'rgba(255,255,255,0.2)';
+            ctx.fillRect(sx + 1, sy + 1, bw + 2, roofH * 0.4);
+            // Roof bottom edge shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.1)';
+            ctx.fillRect(sx + 1, sy + 1 + roofH - 2, bw + 2, 2);
 
-            // Windows — warm glow at night
-            if (bw >= TILE_SIZE * 1.5 && bh >= TILE_SIZE * 1.5) {
-                ctx.fillStyle = 'rgba(255,248,220,0.4)';
-                const winSize = 6;
-                const winGap = 14;
-                for (let wy = sy + 16; wy < sy + bh; wy += winGap) {
-                    for (let wx = sx + 12; wx < sx + bw; wx += winGap) {
+            // Windows
+            if (bw >= TILE_SIZE * 1.2 && bh >= TILE_SIZE * 1.2) {
+                const winSize = 5;
+                const winGap = 12;
+                for (let wy = sy + roofH + 8; wy < sy + bh - 4; wy += winGap) {
+                    for (let wx = sx + 10; wx < sx + bw - 4; wx += winGap) {
+                        // Window frame
+                        ctx.fillStyle = 'rgba(120,180,220,0.5)';
                         ctx.fillRect(wx, wy, winSize, winSize);
+                        // Window glint
+                        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                        ctx.fillRect(wx, wy, winSize * 0.4, winSize * 0.4);
                     }
                 }
             }
 
-            // Building icon (centered, prominent)
+            // Building icon
             const icon = BUILDING_ICONS[b.type];
             if (icon) {
-                const iconSize = Math.min(bw, bh) * 0.38;
+                const iconSize = Math.min(bw, bh) * 0.32;
                 ctx.font = `${iconSize}px serif`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText(icon, sx + bw / 2 + 2, sy + bh / 2 + 2);
+                ctx.fillText(icon, sx + bw / 2 + 2, sy + bh / 2 + roofH * 0.3);
             }
 
-            // Building label (for important buildings)
+            // Building label
             if (['gas_station', 'mechanic', 'stadium', 'concert_hall', 'hospital', 'school', 'mall', 'police', 'home_base'].includes(b.type)) {
-                ctx.font = 'bold 10px sans-serif';
+                ctx.font = 'bold 9px sans-serif';
                 ctx.textAlign = 'center';
                 ctx.fillStyle = '#fff';
-                ctx.strokeStyle = '#000';
-                ctx.lineWidth = 3;
+                ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+                ctx.lineWidth = 2.5;
                 const label = b.type.replace(/_/g, ' ').toUpperCase();
-                ctx.strokeText(label, sx + b.width / 2, sy - 4);
-                ctx.fillText(label, sx + b.width / 2, sy - 4);
+                ctx.strokeText(label, sx + b.width / 2, sy - 3);
+                ctx.fillText(label, sx + b.width / 2, sy - 3);
             }
         }
     }
 
     _drawTree(ctx, x, y, size) {
-        // Trunk
-        ctx.fillStyle = '#5D4037';
-        ctx.fillRect(x - 2, y, 4, size * 0.5);
-        // Canopy
-        ctx.fillStyle = '#2E7D32';
+        // Shadow on ground
+        ctx.fillStyle = 'rgba(0,0,0,0.1)';
         ctx.beginPath();
-        ctx.arc(x, y - size * 0.1, size * 0.5, 0, Math.PI * 2);
+        ctx.ellipse(x, y + size * 0.35, size * 0.5, size * 0.2, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#388E3C';
+        // Trunk
+        ctx.fillStyle = '#6D5037';
+        ctx.fillRect(x - 2, y - 2, 4, size * 0.45);
+        // Main canopy (large lush circle)
+        ctx.fillStyle = '#3a9e3a';
         ctx.beginPath();
-        ctx.arc(x - 3, y - size * 0.2, size * 0.35, 0, Math.PI * 2);
+        ctx.arc(x, y - size * 0.25, size * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+        // Highlight
+        ctx.fillStyle = '#5cb85c';
+        ctx.beginPath();
+        ctx.arc(x - 2, y - size * 0.35, size * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+        // Top bright spot
+        ctx.fillStyle = '#72d572';
+        ctx.beginPath();
+        ctx.arc(x - 1, y - size * 0.42, size * 0.18, 0, Math.PI * 2);
         ctx.fill();
     }
 

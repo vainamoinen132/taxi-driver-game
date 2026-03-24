@@ -22,6 +22,13 @@ class Camera {
         this.y = clamp(this.y, 0, MAP_HEIGHT - this.height);
     }
 
+    snapTo(targetX, targetY) {
+        this.x = targetX - this.width / 2;
+        this.y = targetY - this.height / 2;
+        this.x = clamp(this.x, 0, MAP_WIDTH - this.width);
+        this.y = clamp(this.y, 0, MAP_HEIGHT - this.height);
+    }
+
     resize(w, h) {
         this.width = w;
         this.height = h;

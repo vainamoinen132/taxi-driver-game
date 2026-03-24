@@ -114,7 +114,7 @@ class HUD {
             this.interactionPrompt.classList.remove('hidden');
             if (interBuilding.type === BUILDING_TYPE.GAS_STATION) {
                 const price = interBuilding.fuelPrice ? `$${interBuilding.fuelPrice.toFixed(2)}/L` : '';
-                this.interactionText.textContent = `⛽ Press E to Refuel ${price}`;
+                this.interactionText.textContent = `⛽ Hold E to Refuel ${price}`;
             } else if (interBuilding.type === BUILDING_TYPE.MECHANIC) {
                 let mechText = '🔧 Press E to Repair';
                 if (taxi.tireHealth < 80 || taxi.tireBlown) mechText += ' | Also replaces tires';

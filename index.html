@@ -35,12 +35,9 @@
                     <p><b>ESC</b> — Pause &amp; Upgrades</p>
                 </div>
                 <div class="info-section" style="background:rgba(0,255,136,0.08); border-left:3px solid #00FF88; padding-left:12px;">
-                    <h3>🧭 Quick Navigation (press anytime!)</h3>
-                    <p><b>1</b> — Navigate to <b>Home</b> 🏡</p>
-                    <p><b>2</b> — Navigate to nearest <b>Gas Station</b> ⛽</p>
-                    <p><b>3</b> — Navigate to nearest <b>Mechanic</b> 🔧</p>
-                    <p><b>4</b> — Navigate to nearest <b>Hospital</b> 🏥</p>
-                    <p><b>0</b> — Clear navigation</p>
+                    <h3>🧭 Navigation &amp; Camera</h3>
+                    <p><b>G</b> — Open "Take me to..." menu (gas station, mechanic, home, etc.)</p>
+                    <p><b>C</b> — Center camera on your taxi</p>
                     <p style="color:#aaa; font-size:0.85em;">A green arrow on screen will guide you to your destination!</p>
                 </div>
                 <div class="info-section">
@@ -69,7 +66,7 @@
 
         <!-- HUD -->
         <div id="hud">
-            <div id="nav-hint">NAV: <b>1</b> Home &nbsp; <b>2</b> Gas ⛽ &nbsp; <b>3</b> Mechanic 🔧 &nbsp; <b>4</b> Hospital 🏥 &nbsp; <b>0</b> Clear</div>
+            <div id="nav-hint"><b>G</b> Navigate to... &nbsp; <b>C</b> Center camera &nbsp; <b>F</b> Phone orders &nbsp; <b>M</b> Minimap</div>
             <div id="hud-top-left">
                 <div class="hud-item" id="hud-money">💰 $<span>500</span></div>
                 <div class="hud-item" id="hud-fuel">
@@ -146,6 +143,12 @@
             <div id="phone-header">📱 Ride Orders <small>(F to close)</small></div>
             <div id="phone-orders"></div>
         </div>
+
+        <!-- Navigation Menu -->
+        <div id="nav-menu" class="hidden"></div>
+
+        <!-- Home Screen -->
+        <div id="home-screen" class="overlay hidden"></div>
 
         <!-- Location Picker -->
         <div id="loc-picker" class="hidden"></div>

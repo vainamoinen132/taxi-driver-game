@@ -52,7 +52,7 @@ class NpcCar {
         if (dirs.length === 0) return;
         let dir = randChoice(dirs);
 
-        for (let step = 0; step < 30; step++) {
+        for (let step = 0; step < 40; step++) {
             const key = `${cr},${cc}`;
             if (visited.has(key)) break;
             visited.add(key);
@@ -140,14 +140,14 @@ class NpcCar {
         let diff = desiredAngle - this.angle;
         while (diff > Math.PI) diff -= Math.PI * 2;
         while (diff < -Math.PI) diff += Math.PI * 2;
-        this.angle += clamp(diff, -3.0 * dt, 3.0 * dt);
+        this.angle += clamp(diff, -2.5 * dt, 2.5 * dt);
 
         // Slow down for turns
         const turnFactor = Math.abs(diff) > 0.5 ? 0.4 : 1.0;
 
         // Brake for nearby cars ahead
         let brakeAmount = 0;
-        const lookAhead = 60;
+        const lookAhead = 90;
         const cosA = Math.cos(this.angle);
         const sinA = Math.sin(this.angle);
 
@@ -195,7 +195,7 @@ class NpcCar {
         const tile = pixelToTile(newX, newY);
         if (tile.row >= 0 && tile.row < MAP_ROWS && tile.col >= 0 && tile.col < MAP_COLS) {
             const t = this.city.tiles[tile.row][tile.col];
-            if (t === TILE.ROAD_H || t === TILE.ROAD_V || t === TILE.ROAD_CROSS || t === TILE.SIDEWALK || t === TILE.PARKING || t === TILE.HIGHWAY) {
+            if (t === TILE.ROAD_H || t === TILE.ROAD_V || t === TILE.ROAD_CROSS || t === TILE.HIGHWAY) {
                 this.x = newX;
                 this.y = newY;
             } else {

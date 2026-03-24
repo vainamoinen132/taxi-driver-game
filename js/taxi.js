@@ -146,16 +146,17 @@ class Taxi {
             if (Math.abs(this.speed) < 2) this.speed = 0;
         }
 
-        // Steering (only when moving)
+        // Steering (only when moving, flip when reversing)
         const steerFactor = clamp(Math.abs(this.speed) / 80, 0, 1);
         const gripMod = this.weatherGripMod || 1.0;
         const tireGripMod = this.tireBlown ? 0.5 : clamp(this.tireHealth / 50, 0.6, 1.0);
         const turnRate = TURN_SPEED * this.grip * gripMod * tireGripMod * steerFactor * fatiguePenalty * dt;
+        const steerDir = this.speed < 0 ? -1 : 1;
         if (this.keys.a) {
-            this.angle -= turnRate;
+            this.angle -= turnRate * steerDir;
         }
         if (this.keys.d) {
-            this.angle += turnRate;
+            this.angle += turnRate * steerDir;
         }
 
         // Tire blowout pull
@@ -175,8 +176,9 @@ class Taxi {
         const kmMoved = moved / TILE_SIZE * 0.05;
         this.totalKm += kmMoved;
 
-        // Tire wear
-        const tireWearMult = (this.weatherRainIntensity || 0) > 0.2 ? TIRE_RAIN_WEAR_MULT : 1.0;
+        // Tire wear (mechanics skill reduces wear)
+        const mechanicsLvl = (this.skills && this.skills.mechanics) || 0;
+        const tireWearMult = ((this.weatherRainIntensity || 0) > 0.2 ? TIRE_RAIN_WEAR_MULT : 1.0) * (1 - mechanicsLvl * 0.15);
         this.tireHealth -= moved * TIRE_WEAR_RATE * tireWearMult;
         this.tireHealth = Math.max(0, this.tireHealth);
         if (this.tireHealth <= 0 && !this.tireBlown) {
@@ -214,9 +216,10 @@ class Taxi {
             }
         }
 
-        // Fatigue increases while driving
+        // Fatigue increases while driving (endurance skill slows it)
         if (Math.abs(this.speed) > 5) {
-            this.fatigue += FATIGUE_RATE * dt;
+            const enduranceLvl = (this.skills && this.skills.endurance) || 0;
+            this.fatigue += FATIGUE_RATE * (1 - enduranceLvl * 0.15) * dt;
             this.fatigue = Math.min(this.fatigue, MAX_FATIGUE);
         }
     }
