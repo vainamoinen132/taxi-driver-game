@@ -135,6 +135,9 @@ class Game {
         this.gameTime = DAY_START_HOUR * 60;
         this.realTimeAccum = 0;
 
+        // Snap camera to taxi immediately (no smooth lag on start)
+        this.camera.snapTo(this.taxi.x, this.taxi.y);
+
         // Init audio
         this.audio.init();
         this.audio.resume();
@@ -152,14 +155,10 @@ class Game {
         const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1); // cap dt
         this.lastTime = timestamp;
 
-        try {
-            if (!this.paused) {
-                this._update(dt);
-            }
-            this._render(dt);
-        } catch (err) {
-            console.error('Game loop error:', err);
+        if (!this.paused) {
+            this._update(dt);
         }
+        this._render(dt);
         requestAnimationFrame((t) => this._loop(t));
     }
 
