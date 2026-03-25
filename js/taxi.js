@@ -9,6 +9,16 @@ class Taxi {
         this.angle = 0; // radians
         this.speed = 0; // pixels per second
 
+        // Upgrade levels (index into UPGRADES arrays) - initialize first!
+        this.upgradeLevels = {
+            engine: 0,
+            fuel_tank: 0,
+            tires: 0,
+            brakes: 0,
+            body: 0,
+            comfort: 0,
+        };
+
         // Car model system
         this.carModelId = 'starter_cab';
         this.ownedCars = ['starter_cab'];
@@ -24,16 +34,6 @@ class Taxi {
         this.day = 1;
         this.totalDamageEvents = 0;
         this.totalFines = 0;
-
-        // Upgrade levels (index into UPGRADES arrays)
-        this.upgradeLevels = {
-            engine: 0,
-            fuel_tank: 0,
-            tires: 0,
-            brakes: 0,
-            body: 0,
-            comfort: 0,
-        };
 
         // Passenger
         this.passenger = null;
