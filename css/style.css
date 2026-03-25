@@ -717,7 +717,77 @@ body {
 
 /* Home screen */
 .home-content {
-    max-width: 900px;
+    max-width: 960px;
+}
+.home-tab-bar {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    border-bottom: 2px solid rgba(255,255,255,0.1);
+    padding-bottom: 0;
+}
+.home-tab {
+    background: transparent;
+    border: none;
+    color: #888;
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+.home-tab:hover {
+    color: #fff;
+    background: rgba(255,255,255,0.05);
+}
+.home-tab-active {
+    color: #f5c518;
+    border-bottom-color: #f5c518;
+}
+.home-tab-content {
+    text-align: left;
+}
+.shop-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+.shop-item {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 10px;
+    transition: border-color 0.2s;
+}
+.shop-item:hover {
+    border-color: rgba(255,255,255,0.2);
+}
+.shop-item-owned {
+    border-color: #2ecc71;
+    background: rgba(46,204,113,0.05);
+}
+.shop-item-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 2px;
+}
+.upgrades-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+}
+.upgrade-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 10px;
+}
+.upgrade-card .upgrade-btn {
+    margin-top: 6px;
+    width: 100%;
 }
 .home-grid {
     display: grid;

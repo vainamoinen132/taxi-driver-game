@@ -152,11 +152,13 @@ class HazardManager {
                         this.city.tiles[taxiTile.row][taxiTile.col] === TILE.ROAD_CROSS;
                     const nearEnough = dist(taxi.x, taxi.y, intCenterX, intCenterY) < TILE_SIZE * 1.5;
                     if (onIntersection && nearEnough && Math.abs(taxi.speed) > 20) {
-                        taxi.money -= RED_LIGHT_FINE;
+                        const fineDiscount = (taxi.personalItems && taxi.personalItems.dashcam) ? 0.75 : 1.0;
+                        const fine = Math.round(RED_LIGHT_FINE * fineDiscount);
+                        taxi.money -= fine;
                         taxi.totalFines++;
                         taxi.currentDayFines = (taxi.currentDayFines || 0) + 1;
                         light.cooldown = TRAFFIC_LIGHT_CYCLE;
-                        this.addNotification(`🚦 Red light! Fine -${formatMoney(RED_LIGHT_FINE)}`, 'danger');
+                        this.addNotification(`🚦 Red light! Fine -${formatMoney(fine)}`, 'danger');
                         taxi.flashTimer = 0.5;
                         taxi.flashColor = '#ff4444';
                     }
@@ -180,7 +182,8 @@ class HazardManager {
             if (cam.cooldown > 0) continue;
             const d = dist(taxi.x, taxi.y, cam.x, cam.y);
             if (d < cam.radius && taxi.currentDisplaySpeed > localLimit) {
-                const fine = SPEED_FINE_AMOUNT + Math.floor((taxi.currentDisplaySpeed - localLimit) * 0.5);
+                const fineDiscount = (taxi.personalItems && taxi.personalItems.dashcam) ? 0.75 : 1.0;
+                const fine = Math.round((SPEED_FINE_AMOUNT + Math.floor((taxi.currentDisplaySpeed - localLimit) * 0.5)) * fineDiscount);
                 taxi.money -= fine;
                 taxi.totalFines++;
                 taxi.currentDayFines = (taxi.currentDayFines || 0) + 1;
@@ -198,6 +201,10 @@ class HazardManager {
             if (Math.random() < accidentChance && taxi.currentDisplaySpeed > 150) {
                 const dmg = rand(ACCIDENT_DAMAGE_RANGE[0], ACCIDENT_DAMAGE_RANGE[1]);
                 taxi.takeDamage(dmg);
+                // First aid kit: auto-recover 10% health after accident
+                if (taxi.personalItems && taxi.personalItems.first_aid) {
+                    taxi.health = Math.min(taxi.maxHealth, taxi.health + taxi.maxHealth * 0.1);
+                }
                 taxi.speed *= 0.1;
                 taxi.invulnTimer = 3;
                 this.accidentCooldown = 90;

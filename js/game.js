@@ -721,6 +721,12 @@ class Game {
                 charFareBonus *= this.getCharacterBonus('dayFarePenalty');
             }
             const result = passenger.calculateFare(this.taxi.fareBonus * charFareBonus, fareMultiplier, this.taxi.rideDamageTaken, rideStats.rideTime, rideStats.waitTime, rideStats.avgSpeed);
+            // Lucky dice: bonus 15% tip chance if no tip was given
+            if (result.tip === 0 && this.taxi.personalItems && this.taxi.personalItems.lucky_dice) {
+                if (Math.random() < 0.15) {
+                    result.tip = rand(TIP_RANGE[0], TIP_RANGE[1]);
+                }
+            }
             // Apply character tipChance/tipAmount modifiers
             const charTipMult = this.getCharacterBonus('tipAmount');
             if (charTipMult !== 1.0) result.tip = Math.round(result.tip * charTipMult);
@@ -1121,51 +1127,343 @@ class Game {
         });
     }
 
-    _showHomeScreen() {
+    _showHomeScreen(activeTab) {
         this.paused = true;
         const overlay = document.getElementById('home-screen');
         if (!overlay) return;
 
-        // Calculate day summary
-        const dayEarnings = this.taxi.totalEarnings - (this._dayStartEarnings || 0);
-        const dayFares = this.taxi.totalFares - (this._dayStartFares || 0);
-        const expenses = DAILY_INSURANCE + DAILY_PARKING_FEE + DAILY_PHONE_PLAN;
-
-        // Skills / perks (persistent bonuses bought at home)
-        if (!this.taxi.skills) {
-            this.taxi.skills = {
-                negotiation: 0,  // +tip %
-                navigation: 0,   // minimap zoom
-                endurance: 0,    // fatigue slower
-                mechanics: 0,    // slower wear
-            };
+        // Initialize personal items if not set
+        if (!this.taxi.personalItems) {
+            this.taxi.personalItems = {};
         }
-        const sk = this.taxi.skills;
 
-        const skillDefs = [
+        const currentTab = activeTab || 'summary';
+
+        // Tab definitions
+        const tabs = [
+            { id: 'summary', label: '📊 Summary', icon: '📊' },
+            { id: 'skills', label: '📚 Skills', icon: '📚' },
+            { id: 'shop', label: '🛒 Shop', icon: '🛒' },
+            { id: 'garage', label: '🚗 Garage', icon: '🚗' },
+            { id: 'upgrades', label: '🔧 Upgrades', icon: '🔧' },
+        ];
+
+        let tabBarHtml = '<div class="home-tab-bar">';
+        for (const tab of tabs) {
+            tabBarHtml += `<button class="home-tab ${currentTab === tab.id ? 'home-tab-active' : ''}" data-tab="${tab.id}">${tab.label}</button>`;
+        }
+        tabBarHtml += '</div>';
+
+        let contentHtml = '';
+
+        if (currentTab === 'summary') {
+            contentHtml = this._renderHomeSummary();
+        } else if (currentTab === 'skills') {
+            contentHtml = this._renderHomeSkills();
+        } else if (currentTab === 'shop') {
+            contentHtml = this._renderHomeShop();
+        } else if (currentTab === 'garage') {
+            contentHtml = this._renderHomeGarage();
+        } else if (currentTab === 'upgrades') {
+            contentHtml = this._renderHomeUpgrades();
+        }
+
+        overlay.innerHTML = `
+            <div class="overlay-content wide home-content">
+                <h2>🏡 Home — Day ${this.taxi.day}</h2>
+                <div style="text-align:center;color:#f5c518;font-size:0.9rem;margin-bottom:8px">Balance: <b>${formatMoney(this.taxi.money)}</b></div>
+                ${tabBarHtml}
+                <div class="home-tab-content">${contentHtml}</div>
+                <div style="margin-top:16px; display:flex; gap:12px; justify-content:center;">
+                    <button class="menu-btn" id="home-rest-btn">😴 Rest & Sleep</button>
+                    <button class="menu-btn" id="home-repair-btn">🔧 Repair Car</button>
+                    <button class="menu-btn" id="home-refuel-btn">⛽ Refuel</button>
+                    <button class="menu-btn primary" id="home-nextday-btn">☀️ Start Day ${this.taxi.day + 1}</button>
+                </div>
+            </div>
+        `;
+        overlay.classList.remove('hidden');
+
+        // Bind tab buttons
+        overlay.querySelectorAll('.home-tab').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this._showHomeScreen(btn.dataset.tab);
+            });
+        });
+
+        // Bind skill buttons
+        overlay.querySelectorAll('.home-skill-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const key = btn.dataset.skill;
+                const sk = this.taxi.skills;
+                const skillDefs = this._getSkillDefs();
+                const def = skillDefs.find(s => s.key === key);
+                const lvl = sk[key] || 0;
+                if (lvl < def.max && this.taxi.money >= def.cost[lvl]) {
+                    this.taxi.money -= def.cost[lvl];
+                    sk[key] = lvl + 1;
+                    this._showHomeScreen('skills');
+                }
+            });
+        });
+
+        // Bind shop item buttons
+        overlay.querySelectorAll('.shop-buy-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const itemId = btn.dataset.item;
+                const shopItems = this._getShopItems();
+                const item = shopItems.find(i => i.id === itemId);
+                if (item && this.taxi.money >= item.price && !this.taxi.personalItems[itemId]) {
+                    this.taxi.money -= item.price;
+                    // Consumables are used immediately
+                    if (item.consumable) {
+                        if (itemId === 'energy_drinks') {
+                            this.taxi.fatigue = Math.max(0, this.taxi.fatigue - 50);
+                            this.hazardMgr.addNotification(`🥤 Energy restored! Fatigue -50%`, 'info');
+                        }
+                        // Don't mark as owned so it can be bought again
+                    } else {
+                        this.taxi.personalItems[itemId] = true;
+                        this.hazardMgr.addNotification(`🛍️ Bought ${item.name}!`, 'info');
+                    }
+                    this._showHomeScreen('shop');
+                }
+            });
+        });
+
+        // Bind car buy buttons
+        overlay.querySelectorAll('.car-buy-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const carId = btn.dataset.carid;
+                const model = CAR_MODELS.find(m => m.id === carId);
+                if (model && this.taxi.money >= model.price) {
+                    this.taxi.money -= model.price;
+                    this.taxi.ownedCars.push(carId);
+                    this.taxi.switchCar(carId);
+                    this.hazardMgr.addNotification(`🚗 Bought ${model.name}!`, 'info');
+                    this._showHomeScreen('garage');
+                }
+            });
+        });
+
+        // Bind car switch buttons
+        overlay.querySelectorAll('.car-switch-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const carId = btn.dataset.carid;
+                this.taxi.switchCar(carId);
+                this._showHomeScreen('garage');
+            });
+        });
+
+        // Bind upgrade buttons
+        overlay.querySelectorAll('.home-upgrade-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const key = btn.dataset.key;
+                this.taxi.doUpgrade(key);
+                this._showHomeScreen('upgrades');
+            });
+        });
+
+        // Rest button
+        document.getElementById('home-rest-btn').addEventListener('click', () => {
+            this.taxi.fatigue = 0;
+            this.taxi.isResting = false;
+            this.hazardMgr.addNotification('😴 You slept well! Energy fully restored.', 'info');
+            this._showHomeScreen(currentTab);
+        });
+
+        // Repair button
+        document.getElementById('home-repair-btn').addEventListener('click', () => {
+            if (this.taxi.health >= this.taxi.maxHealth) {
+                this.hazardMgr.addNotification('✅ Car is already in perfect condition!', 'info');
+                return;
+            }
+            const discount = this.taxi.personalItems.toolkit ? 0.7 : 1.0;
+            const cost = Math.round((this.taxi.maxHealth - this.taxi.health) * REPAIR_COST_PER_PERCENT * discount);
+            if (this.taxi.money < cost) {
+                this.hazardMgr.addNotification(`💸 Need ${formatMoney(cost)} to repair.`, 'warning');
+                return;
+            }
+            this.taxi.money -= cost;
+            this.taxi.health = this.taxi.maxHealth;
+            this.taxi.damageVisual = 0;
+            this.taxi.tireHealth = TIRE_MAX_HEALTH;
+            this.taxi.tireBlown = false;
+            this.hazardMgr.addNotification(`🔧 Car fully repaired! -${formatMoney(cost)}`, 'info');
+            this._showHomeScreen(currentTab);
+        });
+
+        // Refuel button
+        document.getElementById('home-refuel-btn').addEventListener('click', () => {
+            if (this.taxi.fuel >= this.taxi.fuelCapacity) {
+                this.hazardMgr.addNotification('✅ Tank is already full!', 'info');
+                return;
+            }
+            const liters = this.taxi.fuelCapacity - this.taxi.fuel;
+            const cost = Math.round(liters * FUEL_COST_PER_LITER);
+            if (this.taxi.money < cost) {
+                this.hazardMgr.addNotification(`💸 Need ${formatMoney(cost)} to refuel.`, 'warning');
+                return;
+            }
+            this.taxi.money -= cost;
+            this.taxi.fuel = this.taxi.fuelCapacity;
+            this.hazardMgr.addNotification(`⛽ Tank full! -${formatMoney(cost)}`, 'info');
+            this._showHomeScreen(currentTab);
+        });
+
+        // Next day button
+        document.getElementById('home-nextday-btn').addEventListener('click', () => {
+            if (!this.taxi.dayEarnings.find(d => d.day === this.taxi.day)) {
+                this.taxi.recordDayEnd();
+            }
+            this.taxi.fatigue = 0;
+            this.taxi.isResting = false;
+            this.taxi.day++;
+            this._dayStartEarnings = this.taxi.totalEarnings;
+            this._dayStartFares = this.taxi.totalFares;
+            this.gameTime = DAY_START_HOUR * 60;
+            overlay.classList.add('hidden');
+            this.paused = false;
+            this.hazardMgr.addNotification(`☀️ Day ${this.taxi.day} begins! Good luck!`, 'info');
+        });
+    }
+
+    _getSkillDefs() {
+        return [
             { key: 'negotiation', name: '💬 Negotiation', desc: '+10% tips per level', cost: [100, 250, 500], max: 3 },
             { key: 'navigation', name: '🧭 Navigation', desc: 'Wider minimap + route hints', cost: [80, 200, 400], max: 3 },
             { key: 'endurance', name: '💪 Endurance', desc: 'Fatigue builds 15% slower/lvl', cost: [120, 300, 600], max: 3 },
             { key: 'mechanics', name: '🔧 Mechanics', desc: 'Tire/car wear 15% slower/lvl', cost: [100, 250, 500], max: 3 },
         ];
+    }
 
-        let skillsHtml = '';
+    _getShopItems() {
+        return [
+            { id: 'dashcam', name: 'Dashcam', icon: '📹', price: 150,
+              desc: 'Reduces all fine amounts by 25%', effect: 'fineReduction' },
+            { id: 'coffee_thermos', name: 'Coffee Thermos', icon: '☕', price: 80,
+              desc: 'Fatigue builds 20% slower while driving', effect: 'fatigueSlow' },
+            { id: 'phone_mount', name: 'Phone Mount', icon: '📱', price: 120,
+              desc: 'App orders pay 15% more', effect: 'appBonus' },
+            { id: 'sunglasses', name: 'Polarized Sunglasses', icon: '🕶️', price: 60,
+              desc: 'Better visibility at night — no speed penalty', effect: 'nightVision' },
+            { id: 'first_aid', name: 'First Aid Kit', icon: '🩹', price: 100,
+              desc: 'Recover 10% health automatically after accidents', effect: 'autoHeal' },
+            { id: 'toolkit', name: 'Toolkit', icon: '🧰', price: 200,
+              desc: '30% discount on all repair costs', effect: 'repairDiscount' },
+            { id: 'air_freshener', name: 'Premium Air Freshener', icon: '🌸', price: 40,
+              desc: '+5% to all passenger ratings', effect: 'ratingBoost' },
+            { id: 'gps_pro', name: 'GPS Pro Device', icon: '🗺️', price: 250,
+              desc: 'Shows passenger destinations on minimap before pickup', effect: 'gpsReveal' },
+            { id: 'seat_covers', name: 'Leather Seat Covers', icon: '💺', price: 180,
+              desc: 'VIP passengers 2x more likely to choose you', effect: 'vipAttract' },
+            { id: 'lucky_dice', name: 'Lucky Dice', icon: '🎲', price: 75,
+              desc: '+15% chance of getting tips', effect: 'tipChance' },
+            { id: 'energy_drinks', name: 'Energy Drink Pack', icon: '🥤', price: 50,
+              desc: 'One-time: instantly restore 50% energy', effect: 'energyBoost', consumable: true },
+            { id: 'better_bed', name: 'Premium Mattress', icon: '🛏️', price: 300,
+              desc: 'Rest at home restores energy 50% faster', effect: 'betterRest' },
+        ];
+    }
+
+    _renderHomeSummary() {
+        const dayEarnings = this.taxi.totalEarnings - (this._dayStartEarnings || 0);
+        const dayFares = this.taxi.totalFares - (this._dayStartFares || 0);
+        const expenses = DAILY_INSURANCE + DAILY_PARKING_FEE + DAILY_PHONE_PLAN;
+
+        return `
+            <div class="home-grid">
+                <div class="home-section">
+                    <h3>📊 Day ${this.taxi.day} Summary</h3>
+                    <div class="stat-row"><span>Fares completed</span><span>${dayFares}</span></div>
+                    <div class="stat-row"><span>Earnings</span><span style="color:#2ecc71">${formatMoney(dayEarnings)}</span></div>
+                    <div class="stat-row"><span>Daily expenses</span><span style="color:#e74c3c">-${formatMoney(expenses)}</span></div>
+                    <div class="stat-row"><span>Net profit</span><span style="color:${dayEarnings - expenses > 0 ? '#2ecc71' : '#e74c3c'}">${formatMoney(dayEarnings - expenses)}</span></div>
+                    <div class="stat-row"><span>Distance driven</span><span>${(this.taxi.currentDayKm || 0).toFixed(1)} km</span></div>
+                    <div class="stat-row"><span>Best single fare</span><span style="color:#f39c12">${formatMoney(this.taxi.currentDayTopFare || 0)}</span></div>
+                    <div class="stat-row"><span>Fines today</span><span style="color:#e74c3c">${this.taxi.currentDayFines || 0}</span></div>
+                    <div class="stat-row"><span>Rating</span><span>${'⭐'.repeat(Math.round(this.taxi.rating))}${'☆'.repeat(5 - Math.round(this.taxi.rating))} (${this.taxi.rating.toFixed(1)})</span></div>
+                    ${this._renderEarningsHistory()}
+                </div>
+                <div class="home-section">
+                    <h3>🎯 Daily Challenges</h3>
+                    ${this._renderChallenges()}
+                    <div style="margin-top:12px;border-top:1px solid rgba(255,255,255,0.1);padding-top:12px">
+                        <h3>🚕 Car Status</h3>
+                        <div class="stat-row"><span>Health</span><span style="color:${this.taxi.health > 60 ? '#2ecc71' : '#e74c3c'}">${Math.floor(this.taxi.health)}/${this.taxi.maxHealth}</span></div>
+                        <div class="stat-row"><span>Fuel</span><span>${Math.floor(this.taxi.fuel)}/${this.taxi.fuelCapacity}L</span></div>
+                        <div class="stat-row"><span>Tires</span><span style="color:${this.taxi.tireHealth > 50 ? '#2ecc71' : '#e74c3c'}">${Math.floor(this.taxi.tireHealth)}%</span></div>
+                        <div class="stat-row"><span>Energy</span><span style="color:${this.taxi.fatigue < 50 ? '#2ecc71' : '#e74c3c'}">${Math.floor(100 - this.taxi.fatigue)}%</span></div>
+                        <div class="stat-row"><span>Total KM</span><span>${this.taxi.totalKm.toFixed(1)} km</span></div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    _renderHomeSkills() {
+        if (!this.taxi.skills) {
+            this.taxi.skills = { negotiation: 0, navigation: 0, endurance: 0, mechanics: 0 };
+        }
+        const sk = this.taxi.skills;
+        const skillDefs = this._getSkillDefs();
+
+        let html = '<div class="home-section"><h3>📚 Skills & Training</h3>';
+        html += '<div style="color:#aaa;font-size:0.82rem;margin-bottom:12px">Invest in yourself to earn more and drive better.</div>';
         for (const s of skillDefs) {
             const lvl = sk[s.key] || 0;
             const nextCost = lvl < s.max ? s.cost[lvl] : null;
             const canBuy = nextCost && this.taxi.money >= nextCost;
             const stars = '⭐'.repeat(lvl) + '☆'.repeat(s.max - lvl);
-            skillsHtml += `<div class="home-skill">
-                <div><b>${s.name}</b> ${stars}</div>
+            const pct = Math.round((lvl / s.max) * 100);
+            html += `<div class="home-skill">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <b>${s.name}</b> <span style="font-size:0.8rem">${stars}</span>
+                </div>
+                <div class="progress-bar" style="margin:4px 0;height:4px"><div class="progress-fill" style="width:${pct}%;background:#f5c518"></div></div>
                 <div style="color:#aaa;font-size:0.8rem">${s.desc}</div>
                 ${nextCost ? `<button class="upgrade-btn home-skill-btn" data-skill="${s.key}" ${canBuy ? '' : 'disabled'}>
-                    ${canBuy ? `Learn - ${formatMoney(nextCost)}` : `Need ${formatMoney(nextCost)}`}
-                </button>` : '<span style="color:#2ecc71">MAX</span>'}
+                    ${canBuy ? `Train — ${formatMoney(nextCost)}` : `Need ${formatMoney(nextCost)}`}
+                </button>` : '<span style="color:#2ecc71;font-size:0.85rem">MASTERED</span>'}
             </div>`;
         }
+        html += '</div>';
+        return html;
+    }
 
-        // Car dealership
-        let garageHtml = '';
+    _renderHomeShop() {
+        const items = this._getShopItems();
+        let html = '<div class="home-section"><h3>🛒 Personal Items Shop</h3>';
+        html += '<div style="color:#aaa;font-size:0.82rem;margin-bottom:12px">Buy items to improve your taxi business. Items persist across days.</div>';
+        html += '<div class="shop-grid">';
+        for (const item of items) {
+            const owned = this.taxi.personalItems[item.id];
+            const canAfford = this.taxi.money >= item.price;
+            html += `<div class="shop-item ${owned ? 'shop-item-owned' : ''}">
+                <div class="shop-item-header">
+                    <span style="font-size:1.3rem">${item.icon}</span>
+                    <div>
+                        <b>${item.name}</b>
+                        <span style="color:#f5c518;font-size:0.8rem;margin-left:6px">${formatMoney(item.price)}</span>
+                    </div>
+                </div>
+                <div style="color:#aaa;font-size:0.8rem;margin:4px 0">${item.desc}</div>
+                ${owned
+                    ? '<span style="color:#2ecc71;font-size:0.85rem">✅ Owned</span>'
+                    : `<button class="upgrade-btn shop-buy-btn" data-item="${item.id}" ${canAfford ? '' : 'disabled'}>
+                        ${canAfford ? `Buy — ${formatMoney(item.price)}` : `Need ${formatMoney(item.price)}`}
+                    </button>`
+                }
+            </div>`;
+        }
+        html += '</div></div>';
+        return html;
+    }
+
+    _renderHomeGarage() {
+        let html = '<div class="home-section"><h3>🚗 Garage — Buy & Switch Cars</h3>';
+        html += `<div style="color:#aaa;font-size:0.82rem;margin-bottom:8px">Current: <b style="color:${this.taxi.carColor}">${this.taxi.carModel.name}</b></div>`;
+        html += '<div class="car-grid">';
         for (const car of CAR_MODELS) {
             const owned = this.taxi.ownedCars.includes(car.id);
             const active = this.taxi.carModelId === car.id;
@@ -1192,7 +1490,7 @@ class Game {
                 </button>`;
             }
 
-            garageHtml += `<div class="car-card ${active ? 'car-card-active' : ''}">
+            html += `<div class="car-card ${active ? 'car-card-active' : ''}">
                 <div class="car-card-header">
                     <span class="car-swatch" style="background:${car.color}"></span>
                     <b>${car.name}</b>
@@ -1203,109 +1501,38 @@ class Game {
                 ${btnHtml}
             </div>`;
         }
+        html += '</div></div>';
+        return html;
+    }
 
-        overlay.innerHTML = `
-            <div class="overlay-content wide home-content">
-                <h2>🏡 Home — End of Day ${this.taxi.day}</h2>
-                <div class="home-grid">
-                    <div class="home-section">
-                        <h3>📊 Day ${this.taxi.day} Summary</h3>
-                        <div class="stat-row"><span>Fares completed</span><span>${dayFares}</span></div>
-                        <div class="stat-row"><span>Earnings</span><span style="color:#2ecc71">${formatMoney(dayEarnings)}</span></div>
-                        <div class="stat-row"><span>Daily expenses</span><span style="color:#e74c3c">-${formatMoney(expenses)}</span></div>
-                        <div class="stat-row"><span>Net profit</span><span style="color:${dayEarnings - expenses > 0 ? '#2ecc71' : '#e74c3c'}">${formatMoney(dayEarnings - expenses)}</span></div>
-                        <div class="stat-row"><span>Balance</span><span style="color:#f5c518">${formatMoney(this.taxi.money)}</span></div>
-                        <div class="stat-row"><span>Distance driven</span><span>${(this.taxi.currentDayKm || 0).toFixed(1)} km</span></div>
-                        <div class="stat-row"><span>$/hour rate</span><span style="color:#3498db">${formatMoney(this.taxi.earningsPerHour || 0)}/hr</span></div>
-                        <div class="stat-row"><span>Best single fare</span><span style="color:#f39c12">${formatMoney(this.taxi.currentDayTopFare || 0)}</span></div>
-                        <div class="stat-row"><span>Fines today</span><span style="color:#e74c3c">${this.taxi.currentDayFines || 0}</span></div>
-                        <div class="stat-row"><span>Rating</span><span>${'⭐'.repeat(Math.round(this.taxi.rating))}${'☆'.repeat(5 - Math.round(this.taxi.rating))} (${this.taxi.rating.toFixed(1)})</span></div>
-                        ${this._renderEarningsHistory()}
-                    </div>
-                    <div class="home-section">
-                        <h3>📚 Skills & Training</h3>
-                        ${skillsHtml}
-                    </div>
+    _renderHomeUpgrades() {
+        let html = '<div class="home-section"><h3>🔧 Car Upgrades</h3>';
+        html += '<div style="color:#aaa;font-size:0.82rem;margin-bottom:12px">Upgrade your car components for better performance.</div>';
+        html += '<div class="upgrades-grid">';
+        for (const [key, upgrade] of Object.entries(UPGRADES)) {
+            const level = this.taxi.upgradeLevels[key];
+            const currentStats = upgrade.levels[level];
+            const nextLevel = level < upgrade.levels.length - 1 ? upgrade.levels[level + 1] : null;
+            const canUp = this.taxi.canUpgrade(key);
+            const pct = Math.round(((level) / (upgrade.levels.length - 1)) * 100);
+
+            html += `<div class="upgrade-card">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <b>${upgrade.icon} ${upgrade.name}</b>
+                    <span style="color:#aaa;font-size:0.8rem">Lvl ${level + 1}/${upgrade.levels.length}</span>
                 </div>
-                <div class="home-section" style="margin-top:16px">
-                    <h3>🎯 Daily Challenges</h3>
-                    ${this._renderChallenges()}
-                </div>
-                <div class="home-section" style="margin-top:16px">
-                    <h3>🚗 Garage — Buy & Switch Cars</h3>
-                    <div style="color:#aaa;font-size:0.82rem;margin-bottom:8px">Current: <b style="color:${this.taxi.carColor}">${this.taxi.carModel.name}</b></div>
-                    <div class="car-grid">${garageHtml}</div>
-                </div>
-                <div style="margin-top:16px; display:flex; gap:12px; justify-content:center;">
-                    <button class="menu-btn" id="home-rest-btn">😴 Rest & Sleep (restore energy)</button>
-                    <button class="menu-btn primary" id="home-nextday-btn">☀️ Start Day ${this.taxi.day + 1}</button>
-                </div>
-            </div>
-        `;
-        overlay.classList.remove('hidden');
-
-        // Bind skill buttons
-        overlay.querySelectorAll('.home-skill-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const key = btn.dataset.skill;
-                const def = skillDefs.find(s => s.key === key);
-                const lvl = sk[key] || 0;
-                if (lvl < def.max && this.taxi.money >= def.cost[lvl]) {
-                    this.taxi.money -= def.cost[lvl];
-                    sk[key] = lvl + 1;
-                    this._showHomeScreen();
-                }
-            });
-        });
-
-        // Bind car buy buttons
-        overlay.querySelectorAll('.car-buy-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const carId = btn.dataset.carid;
-                const model = CAR_MODELS.find(m => m.id === carId);
-                if (model && this.taxi.money >= model.price) {
-                    this.taxi.money -= model.price;
-                    this.taxi.ownedCars.push(carId);
-                    this.taxi.switchCar(carId);
-                    this.hazardMgr.addNotification(`🚗 Bought ${model.name}!`, 'info');
-                    this._showHomeScreen();
-                }
-            });
-        });
-
-        // Bind car switch buttons
-        overlay.querySelectorAll('.car-switch-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const carId = btn.dataset.carid;
-                this.taxi.switchCar(carId);
-                this._showHomeScreen();
-            });
-        });
-
-        // Rest button
-        document.getElementById('home-rest-btn').addEventListener('click', () => {
-            this.taxi.fatigue = 0;
-            this.taxi.isResting = false;
-            this.hazardMgr.addNotification('😴 You slept well! Energy fully restored.', 'info');
-            this._showHomeScreen();
-        });
-
-        // Next day button
-        document.getElementById('home-nextday-btn').addEventListener('click', () => {
-            // Record day-end stats before advancing
-            if (!this.taxi.dayEarnings.find(d => d.day === this.taxi.day)) {
-                this.taxi.recordDayEnd();
-            }
-            this.taxi.fatigue = 0;
-            this.taxi.isResting = false;
-            this.taxi.day++;
-            this._dayStartEarnings = this.taxi.totalEarnings;
-            this._dayStartFares = this.taxi.totalFares;
-            this.gameTime = DAY_START_HOUR * 60;
-            overlay.classList.add('hidden');
-            this.paused = false;
-            this.hazardMgr.addNotification(`☀️ Day ${this.taxi.day} begins! Good luck!`, 'info');
-        });
+                <div class="progress-bar" style="margin:6px 0;height:4px"><div class="progress-fill" style="width:${pct}%;background:#3498db"></div></div>
+                <div style="color:#ccc;font-size:0.82rem">${currentStats.desc}</div>
+                ${nextLevel ? `
+                    <div style="color:#aaa;font-size:0.78rem;margin-top:2px">Next: ${nextLevel.desc}</div>
+                    <button class="upgrade-btn home-upgrade-btn" data-key="${key}" ${canUp.can ? '' : 'disabled'}>
+                        ${canUp.can ? `Upgrade — ${formatMoney(nextLevel.cost)}` : canUp.reason}
+                    </button>
+                ` : '<span style="color:#2ecc71;font-size:0.85rem">MAX LEVEL</span>'}
+            </div>`;
+        }
+        html += '</div></div>';
+        return html;
     }
 
     _renderChallenges() {
@@ -1439,6 +1666,7 @@ class Game {
         if (s.ownedCars) t.ownedCars = s.ownedCars;
         if (s.upgradeLevels) t.upgradeLevels = s.upgradeLevels;
         if (s.skills) t.skills = s.skills;
+        if (s.personalItems) t.personalItems = s.personalItems;
 
         // Load earnings tracking data
         if (s.dayEarnings) t.dayEarnings = s.dayEarnings;

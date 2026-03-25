@@ -304,10 +304,10 @@ class City {
     }
 
     _findBuildingSpot(block, w, h) {
-        // Find a spot within the block interior on GRASS tiles only.
-        // Sidewalks form a natural buffer between buildings and roads,
-        // so we just need to ensure we place on grass (not sidewalk/road).
-        for (let attempt = 0; attempt < 40; attempt++) {
+        // Place buildings adjacent to sidewalks (which border roads).
+        // Strategy: find spots where at least one edge of the building
+        // touches a sidewalk tile, ensuring buildings are road-adjacent.
+        for (let attempt = 0; attempt < 60; attempt++) {
             const col = this.rng.randInt(block.minCol, block.maxCol - w + 1);
             const row = this.rng.randInt(block.minRow, block.maxRow - h + 1);
             if (col + w > MAP_COLS || row + h > MAP_ROWS) continue;
@@ -320,7 +320,36 @@ class City {
                     }
                 }
             }
-            if (valid) return { col, row };
+            if (!valid) continue;
+
+            // Must be adjacent to at least one sidewalk tile (= near a road)
+            let adjSidewalk = false;
+            // Check top edge
+            if (row - 1 >= 0) {
+                for (let c = col; c < col + w; c++) {
+                    if (this.tiles[row - 1][c] === TILE.SIDEWALK) { adjSidewalk = true; break; }
+                }
+            }
+            // Check bottom edge
+            if (!adjSidewalk && row + h < MAP_ROWS) {
+                for (let c = col; c < col + w; c++) {
+                    if (this.tiles[row + h][c] === TILE.SIDEWALK) { adjSidewalk = true; break; }
+                }
+            }
+            // Check left edge
+            if (!adjSidewalk && col - 1 >= 0) {
+                for (let r = row; r < row + h; r++) {
+                    if (this.tiles[r][col - 1] === TILE.SIDEWALK) { adjSidewalk = true; break; }
+                }
+            }
+            // Check right edge
+            if (!adjSidewalk && col + w < MAP_COLS) {
+                for (let r = row; r < row + h; r++) {
+                    if (this.tiles[r][col + w] === TILE.SIDEWALK) { adjSidewalk = true; break; }
+                }
+            }
+
+            if (adjSidewalk) return { col, row };
         }
         return null;
     }
@@ -359,35 +388,66 @@ class City {
         }
         this.buildings.push(building);
 
-        // Add parking lot next to service buildings
-        const needsParking = [
-            BUILDING_TYPE.GAS_STATION, BUILDING_TYPE.MECHANIC,
-            BUILDING_TYPE.HOSPITAL, BUILDING_TYPE.HOME,
-            BUILDING_TYPE.MALL, BUILDING_TYPE.STADIUM,
-            BUILDING_TYPE.CONCERT_HALL, BUILDING_TYPE.HOTEL,
-        ];
-        if (needsParking.includes(type)) {
-            this._addParkingLot(building);
-        }
+        // Every building gets a parking area / open-air parking space
+        this._addParkingLot(building);
     }
 
     _addParkingLot(building) {
-        // Try each side of the building for a strip of parking (prefer side nearest road)
+        // Place parking on the side of the building closest to a road.
+        // This ensures parking is between the building and the street.
         const sides = [
-            { dr: -1, dc: 0, label: 'top' },
-            { dr: 1, dc: 0, label: 'bottom' },
-            { dc: -1, dr: 0, label: 'left' },
-            { dc: 1, dr: 0, label: 'right' },
+            { label: 'top' },
+            { label: 'bottom' },
+            { label: 'left' },
+            { label: 'right' },
         ];
-        // Shuffle so parking placement varies
-        sides.sort(() => this.rng.next() - 0.5);
+
+        // Score each side by how close it is to a road (prefer road-adjacent sides)
+        for (const side of sides) {
+            side.roadDist = 99;
+            if (side.label === 'top' && building.row - 1 >= 0) {
+                for (let c = building.col; c < building.col + building.w; c++) {
+                    for (let d = 1; d <= 3 && building.row - d >= 0; d++) {
+                        if (isRoadTile(this.tiles[building.row - d][c])) {
+                            side.roadDist = Math.min(side.roadDist, d);
+                        }
+                    }
+                }
+            } else if (side.label === 'bottom' && building.row + building.h < MAP_ROWS) {
+                for (let c = building.col; c < building.col + building.w; c++) {
+                    for (let d = 1; d <= 3 && building.row + building.h - 1 + d < MAP_ROWS; d++) {
+                        if (isRoadTile(this.tiles[building.row + building.h - 1 + d][c])) {
+                            side.roadDist = Math.min(side.roadDist, d);
+                        }
+                    }
+                }
+            } else if (side.label === 'left' && building.col - 1 >= 0) {
+                for (let r = building.row; r < building.row + building.h; r++) {
+                    for (let d = 1; d <= 3 && building.col - d >= 0; d++) {
+                        if (isRoadTile(this.tiles[r][building.col - d])) {
+                            side.roadDist = Math.min(side.roadDist, d);
+                        }
+                    }
+                }
+            } else if (side.label === 'right' && building.col + building.w < MAP_COLS) {
+                for (let r = building.row; r < building.row + building.h; r++) {
+                    for (let d = 1; d <= 3 && building.col + building.w - 1 + d < MAP_COLS; d++) {
+                        if (isRoadTile(this.tiles[r][building.col + building.w - 1 + d])) {
+                            side.roadDist = Math.min(side.roadDist, d);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sort by road proximity (closest first), then shuffle ties
+        sides.sort((a, b) => a.roadDist - b.roadDist || (this.rng.next() - 0.5));
 
         for (const side of sides) {
             const tiles = [];
             let valid = true;
 
             if (side.label === 'top' || side.label === 'bottom') {
-                // Horizontal strip above or below building
                 const r = side.label === 'top' ? building.row - 1 : building.row + building.h;
                 if (r < 0 || r >= MAP_ROWS) continue;
                 for (let c = building.col; c < building.col + building.w; c++) {
@@ -397,7 +457,6 @@ class City {
                     tiles.push({ r, c });
                 }
             } else {
-                // Vertical strip left or right of building
                 const c = side.label === 'left' ? building.col - 1 : building.col + building.w;
                 if (c < 0 || c >= MAP_COLS) continue;
                 for (let r = building.row; r < building.row + building.h; r++) {
@@ -413,7 +472,7 @@ class City {
                     this.tiles[r][c] = TILE.PARKING;
                     building.parkingTiles.push({ row: r, col: c });
                 }
-                return; // one side is enough
+                return;
             }
         }
     }

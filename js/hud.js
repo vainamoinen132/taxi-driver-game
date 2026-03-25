@@ -145,7 +145,7 @@ class HUD {
                 if (taxi.tireHealth < 80 || taxi.tireBlown) mechText += ' | Also replaces tires';
                 this.interactionText.textContent = mechText;
             } else if (interBuilding.type === BUILDING_TYPE.HOME) {
-                this.interactionText.textContent = '🏡 Press E to Rest at Home';
+                this.interactionText.textContent = '🏡 Press E — Home (Rest, Shop, Upgrades)';
             }
         } else {
             this.interactionPrompt.classList.add('hidden');
