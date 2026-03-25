@@ -204,14 +204,15 @@ class NpcCar {
         const cosA = Math.cos(this.angle);
         const sinA = Math.sin(this.angle);
 
-        // Check player
+        // Check player — brake earlier and harder
+        const playerLook = 150;
         const px = playerTaxi.x - this.x;
         const py = playerTaxi.y - this.y;
         const pDist = Math.sqrt(px * px + py * py);
-        if (pDist < lookAhead + 30) {
+        if (pDist < playerLook) {
             const dot = (px * cosA + py * sinA) / (pDist || 1);
-            if (dot > 0.3) { // car is ahead of us
-                brakeAmount = Math.max(brakeAmount, 1.0 - pDist / (lookAhead + 30));
+            if (dot > 0.2) { // car is ahead of us
+                brakeAmount = Math.max(brakeAmount, 1.0 - pDist / playerLook);
             }
         }
 
@@ -223,7 +224,7 @@ class NpcCar {
             const oDist = Math.sqrt(ox * ox + oy * oy);
             if (oDist < lookAhead) {
                 const dot = (ox * cosA + oy * sinA) / (oDist || 1);
-                if (dot > 0.3) {
+                if (dot > 0.2) {
                     brakeAmount = Math.max(brakeAmount, 1.0 - oDist / lookAhead);
                 }
             }
@@ -244,12 +245,12 @@ class NpcCar {
             }
         }
 
-        // Speed control
-        const wantedSpeed = this.maxSpeed * turnFactor * (1.0 - brakeAmount * 0.9);
+        // Speed control — stronger braking response
+        const wantedSpeed = this.maxSpeed * turnFactor * (1.0 - brakeAmount);
         if (this.speed < wantedSpeed) {
             this.speed += 40 * dt; // gentle acceleration
         } else {
-            this.speed -= 60 * dt; // firm braking
+            this.speed -= 120 * dt; // firm braking
         }
         this.speed = clamp(this.speed, 0, this.maxSpeed);
 
@@ -294,10 +295,10 @@ class NpcCar {
     }
 
     _respawnFarFromPlayer(playerTaxi) {
-        // Respawn on a road tile that is far from the player (no popping up in face)
+        // Respawn on a road tile far from the player (no popping up in face)
         for (let attempt = 0; attempt < 50; attempt++) {
             const pos = this.city.getRandomRoadPosition();
-            if (dist(pos.x, pos.y, playerTaxi.x, playerTaxi.y) > TILE_SIZE * 8) {
+            if (dist(pos.x, pos.y, playerTaxi.x, playerTaxi.y) > TILE_SIZE * 15) {
                 this.x = pos.x;
                 this.y = pos.y;
                 this.speed = 0;
@@ -477,21 +478,49 @@ class Bus {
         this.waypoints = [];
         this.waypointIdx = 0;
 
-        // Pick a random horizontal road and follow it
+        // Pick a random horizontal road and follow the correct lane
         if (this.city.horizontalRoads.length === 0) return;
         const roadRow = randChoice(this.city.horizontalRoads);
-        for (let c = 2; c < MAP_COLS - 2; c += 3) {
-            if (isRoadTile(this.city.tiles[roadRow][c])) {
-                const pos = tileToPixel(c, roadRow);
-                const isStop = c % 12 === 0; // bus stop every ~12 tiles
-                this.waypoints.push({ x: pos.x, y: pos.y, isStop });
+
+        // Determine lane direction: top row of a 2-lane road goes LEFT, bottom goes RIGHT
+        const belowIsH = (roadRow + 1 < MAP_ROWS) &&
+            (this.city.tiles[roadRow + 1] && isRoadTile(this.city.tiles[roadRow + 1][Math.floor(MAP_COLS / 2)]));
+        const aboveIsH = (roadRow - 1 >= 0) &&
+            (this.city.tiles[roadRow - 1] && isRoadTile(this.city.tiles[roadRow - 1][Math.floor(MAP_COLS / 2)]));
+        // If there's a road row below, we're the top lane (go LEFT then return RIGHT)
+        // If there's a road row above, we're the bottom lane (go RIGHT then return LEFT)
+        const goRight = aboveIsH;
+
+        // Forward trip
+        if (goRight) {
+            for (let c = 2; c < MAP_COLS - 2; c += 3) {
+                if (isRoadTile(this.city.tiles[roadRow][c])) {
+                    const pos = tileToPixel(c, roadRow);
+                    this.waypoints.push({ x: pos.x, y: pos.y, isStop: c % 12 === 0 });
+                }
+            }
+        } else {
+            for (let c = MAP_COLS - 3; c >= 2; c -= 3) {
+                if (isRoadTile(this.city.tiles[roadRow][c])) {
+                    const pos = tileToPixel(c, roadRow);
+                    this.waypoints.push({ x: pos.x, y: pos.y, isStop: c % 12 === 0 });
+                }
             }
         }
-        // Return trip
-        for (let c = MAP_COLS - 3; c >= 2; c -= 3) {
-            if (isRoadTile(this.city.tiles[roadRow][c])) {
-                const pos = tileToPixel(c, roadRow);
-                this.waypoints.push({ x: pos.x, y: pos.y, isStop: false });
+        // Return trip on opposite lane (loop back)
+        if (goRight) {
+            for (let c = MAP_COLS - 3; c >= 2; c -= 3) {
+                if (isRoadTile(this.city.tiles[roadRow][c])) {
+                    const pos = tileToPixel(c, roadRow);
+                    this.waypoints.push({ x: pos.x, y: pos.y, isStop: false });
+                }
+            }
+        } else {
+            for (let c = 2; c < MAP_COLS - 2; c += 3) {
+                if (isRoadTile(this.city.tiles[roadRow][c])) {
+                    const pos = tileToPixel(c, roadRow);
+                    this.waypoints.push({ x: pos.x, y: pos.y, isStop: false });
+                }
             }
         }
     }
@@ -555,18 +584,29 @@ class TrafficManager {
     }
 
     update(dt, playerTaxi, hazardMgr) {
-        // Spawn NPC cars
+        // Spawn NPC cars — far from player to avoid pop-in
         while (this.cars.length < MAX_NPC_CARS) {
             let spawned = false;
             for (let attempt = 0; attempt < 20; attempt++) {
                 const pos = this.city.getRandomRoadPosition();
-                if (dist(pos.x, pos.y, playerTaxi.x, playerTaxi.y) > TILE_SIZE * 8) {
+                if (dist(pos.x, pos.y, playerTaxi.x, playerTaxi.y) > TILE_SIZE * 15) {
                     this.cars.push(new NpcCar(pos.x, pos.y, this.city));
                     spawned = true;
                     break;
                 }
             }
             if (!spawned) break;
+        }
+
+        // Remove NPC cars that are too close to stationary/slow player (prevent parking area collisions)
+        if (Math.abs(playerTaxi.speed) < 10) {
+            for (let i = this.cars.length - 1; i >= 0; i--) {
+                const car = this.cars[i];
+                const d = dist(car.x, car.y, playerTaxi.x, playerTaxi.y);
+                if (d < TILE_SIZE * 2 && car.stuckTimer > 1.5) {
+                    this.cars.splice(i, 1);
+                }
+            }
         }
 
         // Spawn pedestrians

@@ -446,15 +446,25 @@ class Game {
         const vb = vehicle.getBounds();
         if (rectsOverlap(pb.x, pb.y, pb.w, pb.h, vb.x, vb.y, vb.w, vb.h)) {
             if (this.taxi.invulnTimer <= 0) {
-                const impactSpeed = Math.abs(this.taxi.speed) + Math.abs(vehicle.speed);
-                if (impactSpeed > 40) {
-                    const dmg = impactSpeed * 0.06;
+                const impactSpeed = Math.abs(this.taxi.speed) + Math.abs(vehicle.speed || 0);
+                if (impactSpeed > 20) {
+                    // Damage scales with collision violence:
+                    // - Low speed tap (20-60): minor scratch (1-4 dmg)
+                    // - Medium hit (60-120): moderate dent (4-10 dmg)
+                    // - High speed crash (120+): severe (10-25+ dmg)
+                    const severity = Math.pow(impactSpeed / 60, 1.8);
+                    const dmg = Math.min(severity * 3, 40);
                     this.taxi.takeDamage(dmg);
+                    // Bounce proportional to speed
                     this.taxi.speed *= -0.3;
                     vehicle.speed *= -0.5;
                     this.taxi.invulnTimer = 1.5;
                     this.audio.playDamage();
-                    this.hazardMgr.addNotification(`💥 Collision with a ${label}!`, 'danger');
+                    if (impactSpeed > 100) {
+                        this.hazardMgr.addNotification(`💥 Heavy crash with a ${label}! -${Math.round(dmg)} HP`, 'danger');
+                    } else {
+                        this.hazardMgr.addNotification(`💥 Collision with a ${label}! -${Math.round(dmg)} HP`, 'danger');
+                    }
                 }
             }
         }

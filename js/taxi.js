@@ -125,14 +125,14 @@ class Taxi {
     }
 
     get maxSpeed() {
-        const base = this._carStats ? this._carStats.maxSpeed : 180;
-        const upgBonus = UPGRADES.engine.levels[this.upgradeLevels.engine].maxSpeed - 180;
+        const base = this._carStats ? this._carStats.maxSpeed : 100;
+        const upgBonus = UPGRADES.engine.levels[this.upgradeLevels.engine].maxSpeed - 100;
         const charMod = (this.characterBonuses && this.characterBonuses.maxSpeed) || 1.0;
         return (base + upgBonus) * charMod;
     }
     get acceleration() {
-        const base = this._carStats ? this._carStats.acceleration : 80;
-        const upgBonus = UPGRADES.engine.levels[this.upgradeLevels.engine].acceleration - 80;
+        const base = this._carStats ? this._carStats.acceleration : 50;
+        const upgBonus = UPGRADES.engine.levels[this.upgradeLevels.engine].acceleration - 50;
         return base + upgBonus;
     }
     get fuelCapacity() {
@@ -328,10 +328,12 @@ class Taxi {
         }
 
         if (blocked) {
-            // Bounce back and take damage
+            // Damage proportional to impact speed before bounce
+            const impactSpeed = Math.abs(this.speed);
             this.speed *= -0.3;
-            if (Math.abs(this.speed) > 20 && this.invulnTimer <= 0) {
-                const dmg = Math.abs(this.speed) * 0.05;
+            if (impactSpeed > 15 && this.invulnTimer <= 0) {
+                const severity = Math.pow(impactSpeed / 40, 1.6);
+                const dmg = Math.min(severity * 2.5, 30);
                 this.takeDamage(dmg);
             }
         } else {
@@ -444,8 +446,11 @@ class Taxi {
         // Only trigger when taxi is actually ON a parking tile and nearly stopped
         if (Math.abs(this.speed) > 15) return null;
         const { col, row } = pixelToTile(this.x, this.y);
+        // Only these building types have player interactions
+        const interactable = [BUILDING_TYPE.GAS_STATION, BUILDING_TYPE.MECHANIC, BUILDING_TYPE.HOME];
         for (const b of city.buildings) {
             if (b.parkingTiles.length === 0) continue;
+            if (!interactable.includes(b.type)) continue;
             for (const ptile of b.parkingTiles) {
                 if (ptile.col === col && ptile.row === row) {
                     return b;
