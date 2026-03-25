@@ -48,16 +48,19 @@ class Passenger {
     _rollType(playerRating = 3.0) {
         const r = Math.random();
         
-        // VIP chance increases with rating
+        // VIP chance increases with rating (cumulative thresholds)
         let vipChance = 0.04;
         if (playerRating >= 4.5) vipChance = 0.12;
         else if (playerRating >= 4.0) vipChance = 0.08;
         else if (playerRating >= 3.5) vipChance = 0.06;
-        else if (playerRating < 2.5) vipChance = 0.01; // Low rating = fewer VIPs
+        else if (playerRating < 2.5) vipChance = 0.01;
+        
+        const thiefChance = vipChance + 0.04;       // 4% thief
+        const troubleChance = thiefChance + 0.12;    // 12% troublemaker
         
         if (r < vipChance) return 'vip';
-        if (r < 0.08) return 'thief';
-        if (r < 0.20) return 'troublemaker';
+        if (r < thiefChance) return 'thief';
+        if (r < troubleChance) return 'troublemaker';
         return 'normal';
     }
 

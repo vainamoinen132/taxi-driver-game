@@ -273,6 +273,7 @@ class Game {
                 this.taxi.hasPassenger = true;
                 this.taxi.rideDamageTaken = 0;
                 this.taxi.rideStartTime = this.gameTime;
+                this.taxi.rideRealStartTime = Date.now() / 1000;
                 this.taxi.rideWaitTime = (Date.now() / 1000) - (p.spawnTime || 0);
                 this.audio.playPickup();
                 
@@ -499,8 +500,8 @@ class Game {
                 this.audio.toggle();
             }
 
-            // Radio controls
-            if (e.key === 'm' || e.key === 'M') {
+            // Radio controls: . for next station, , for previous
+            if (e.key === '.' || e.key === '>') {
                 if (this.radio) {
                     const stationInfo = this.radio.changeStation(1);
                     this.hazardMgr.addNotification(`📻 ${stationInfo.name} - ${stationInfo.genre}`, 'info');
@@ -571,6 +572,10 @@ class Game {
             if (d < TILE_SIZE * 2.5 && Math.abs(this.taxi.speed) < 30) {
                 appOrder.pickedUp = true;
                 this.taxi.hasPassenger = true;
+                this.taxi.rideDamageTaken = 0;
+                this.taxi.rideStartTime = this.gameTime;
+                this.taxi.rideRealStartTime = Date.now() / 1000;
+                this.taxi.rideWaitTime = 0;
                 this.taxi.passenger = {
                     name: appOrder.customerName,
                     destX: appOrder.destX,
@@ -579,6 +584,8 @@ class Game {
                     type: 'app_order',
                     active: true,
                     pickedUp: true,
+                    spawnX: appOrder.pickupX,
+                    spawnY: appOrder.pickupY,
                     getDestinationName: () => BUILDING_ICONS[appOrder.destBuilding.type] + ' ' +
                         appOrder.destBuilding.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
                 };
@@ -619,6 +626,7 @@ class Game {
                 this.taxi.hasPassenger = true;
                 this.taxi.rideDamageTaken = 0;
                 this.taxi.rideStartTime = this.gameTime;
+                this.taxi.rideRealStartTime = Date.now() / 1000;
                 this.taxi.rideWaitTime = (Date.now() / 1000) - (p.spawnTime || 0);
                 this._pendingPickup = null;
                 this.audio.playPickup();
@@ -1238,7 +1246,7 @@ class Game {
                     </div>
                     ${completed && challenge.reward ? `
                         <div class="challenge-reward">
-                            <span class="reward-icon">${CHALLENGE_REWARDS[challenge.reward.type]?.icon || '🎁'}</span>
+                            <span class="reward-icon">${CHALLENGE_REWARDS[challenge.reward.type.toUpperCase()]?.icon || '🎁'}</span>
                             <span class="reward-text">${this._formatRewardText(challenge.reward)}</span>
                         </div>
                     ` : ''}

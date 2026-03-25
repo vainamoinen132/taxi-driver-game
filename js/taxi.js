@@ -69,6 +69,7 @@ class Taxi {
         this.ratingHistory = []; // last N fare ratings
         this.rideDamageTaken = 0; // damage during current ride
         this.rideStartTime = 0;
+        this.rideRealStartTime = 0; // real clock time for ride duration calculation
         this.rideWaitTime = 0; // time passenger waited for pickup
         this.rideDistance = 0; // distance traveled during ride
         this.rideSpeedSum = 0; // sum of speeds for average calculation
@@ -430,7 +431,7 @@ class Taxi {
     }
 
     getRideStats() {
-        const rideTime = this.rideStartTime > 0 ? (Date.now() / 1000) - this.rideStartTime : 0;
+        const rideTime = this.rideRealStartTime > 0 ? (Date.now() / 1000) - this.rideRealStartTime : 0;
         const avgSpeed = this.rideSpeedSamples > 0 ? (this.rideSpeedSum / this.rideSpeedSamples) : 0;
         
         return {
@@ -444,6 +445,7 @@ class Taxi {
     resetRideStats() {
         this.rideDamageTaken = 0;
         this.rideStartTime = 0;
+        this.rideRealStartTime = 0;
         this.rideWaitTime = 0;
         this.rideDistance = 0;
         this.rideSpeedSum = 0;

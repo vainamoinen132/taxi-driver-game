@@ -16,7 +16,7 @@ class PolicePatrolSystem {
     update(dt, playerTaxi) {
         // Spawn police patrols if needed
         while (this.policeCars.length < this.maxPatrols) {
-            this._spawnPatrolCar();
+            this._spawnPatrolCar(playerTaxi);
         }
 
         // Update all police cars
@@ -39,13 +39,14 @@ class PolicePatrolSystem {
         }
     }
 
-    _spawnPatrolCar() {
+    _spawnPatrolCar(playerTaxi) {
         // Spawn at random road position away from player
         let pos;
+        const px = playerTaxi ? playerTaxi.x : MAP_COLS * TILE_SIZE / 2;
+        const py = playerTaxi ? playerTaxi.y : MAP_ROWS * TILE_SIZE / 2;
         for (let attempt = 0; attempt < 10; attempt++) {
             pos = this.city.getRandomRoadPosition();
-            // Make sure it's not too close to player
-            if (dist(pos.x, pos.y, this._getPlayerPos().x, this._getPlayerPos().y) > TILE_SIZE * 10) {
+            if (dist(pos.x, pos.y, px, py) > TILE_SIZE * 10) {
                 break;
             }
         }
@@ -69,11 +70,6 @@ class PolicePatrolSystem {
                 pullOverTarget: null
             });
         }
-    }
-
-    _getPlayerPos() {
-        // This would be passed in from the game, using a fallback for now
-        return { x: MAP_COLS * TILE_SIZE / 2, y: MAP_ROWS * TILE_SIZE / 2 };
     }
 
     _updatePatrolCar(police, dt, playerTaxi) {
@@ -158,13 +154,13 @@ class PolicePatrolSystem {
         police.angle = targetAngle;
         
         // Speed up to catch up
-        const dist = dist(police.x, police.y, playerTaxi.x, playerTaxi.y);
-        if (dist > TILE_SIZE * 2) {
+        const distToPlayer = dist(police.x, police.y, playerTaxi.x, playerTaxi.y);
+        if (distToPlayer > TILE_SIZE * 2) {
             police.speed = Math.min(police.speed + 100 * dt, police.maxSpeed);
         } else {
             police.speed = Math.max(playerTaxi.speed + 10, 60);
             // Close enough to pull over
-            if (dist < TILE_SIZE * 1.5 && Math.abs(playerTaxi.speed) < 30) {
+            if (distToPlayer < TILE_SIZE * 1.5 && Math.abs(playerTaxi.speed) < 30) {
                 police.patrolMode = 'pulling_over';
                 this.pullOverTimer = 5; // 5 seconds to complete pull over
             }
@@ -173,7 +169,6 @@ class PolicePatrolSystem {
 
     _pullOverBehavior(police, playerTaxi, dt) {
         // Position behind player
-        const behindAngle = playerTaxi.angle + Math.PI;
         const targetX = playerTaxi.x - Math.cos(playerTaxi.angle) * TILE_SIZE * 1.5;
         const targetY = playerTaxi.y - Math.sin(playerTaxi.angle) * TILE_SIZE * 1.5;
         
@@ -193,9 +188,9 @@ class PolicePatrolSystem {
 
         if (police.waypoints.length > 0) {
             const target = police.waypoints[police.waypointIdx];
-            const dist = Math.hypot(target.x - police.x, target.y - police.y);
+            const distToTarget = Math.hypot(target.x - police.x, target.y - police.y);
             
-            if (dist < TILE_SIZE) {
+            if (distToTarget < TILE_SIZE) {
                 police.waypointIdx++;
             } else {
                 const targetAngle = Math.atan2(target.y - police.y, target.x - police.x);
