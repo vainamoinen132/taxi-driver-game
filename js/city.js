@@ -393,86 +393,154 @@ class City {
     }
 
     _addParkingLot(building) {
-        // Place parking on the side of the building closest to a road.
-        // This ensures parking is between the building and the street.
-        const sides = [
-            { label: 'top' },
-            { label: 'bottom' },
-            { label: 'left' },
-            { label: 'right' },
-        ];
+        // Place parking on the side closest to a road, ensuring it connects building to street.
+        // For each side, find the row/col of tiles between building edge and nearest road.
+        // Place parking on all non-road tiles in that strip so the lot bridges building ↔ road.
 
-        // Score each side by how close it is to a road (prefer road-adjacent sides)
+        const sides = [];
+
+        // Top side
+        if (building.row > 0) {
+            let roadRow = -1;
+            outer_top:
+            for (let d = 1; d <= 4 && building.row - d >= 0; d++) {
+                for (let c = building.col; c < building.col + building.w; c++) {
+                    if (isRoadTile(this.tiles[building.row - d][c])) {
+                        roadRow = building.row - d;
+                        break outer_top;
+                    }
+                }
+            }
+            if (roadRow >= 0) sides.push({ label: 'top', roadDist: building.row - roadRow, roadEdge: roadRow });
+        }
+
+        // Bottom side
+        if (building.row + building.h < MAP_ROWS) {
+            let roadRow = -1;
+            outer_bot:
+            for (let d = 1; d <= 4 && building.row + building.h - 1 + d < MAP_ROWS; d++) {
+                for (let c = building.col; c < building.col + building.w; c++) {
+                    if (isRoadTile(this.tiles[building.row + building.h - 1 + d][c])) {
+                        roadRow = building.row + building.h - 1 + d;
+                        break outer_bot;
+                    }
+                }
+            }
+            if (roadRow >= 0) sides.push({ label: 'bottom', roadDist: roadRow - (building.row + building.h - 1), roadEdge: roadRow });
+        }
+
+        // Left side
+        if (building.col > 0) {
+            let roadCol = -1;
+            outer_left:
+            for (let d = 1; d <= 4 && building.col - d >= 0; d++) {
+                for (let r = building.row; r < building.row + building.h; r++) {
+                    if (isRoadTile(this.tiles[r][building.col - d])) {
+                        roadCol = building.col - d;
+                        break outer_left;
+                    }
+                }
+            }
+            if (roadCol >= 0) sides.push({ label: 'left', roadDist: building.col - roadCol, roadEdge: roadCol });
+        }
+
+        // Right side
+        if (building.col + building.w < MAP_COLS) {
+            let roadCol = -1;
+            outer_right:
+            for (let d = 1; d <= 4 && building.col + building.w - 1 + d < MAP_COLS; d++) {
+                for (let r = building.row; r < building.row + building.h; r++) {
+                    if (isRoadTile(this.tiles[r][building.col + building.w - 1 + d])) {
+                        roadCol = building.col + building.w - 1 + d;
+                        break outer_right;
+                    }
+                }
+            }
+            if (roadCol >= 0) sides.push({ label: 'right', roadDist: roadCol - (building.col + building.w - 1), roadEdge: roadCol });
+        }
+
+        // Sort by road proximity (closest road first)
+        sides.sort((a, b) => a.roadDist - b.roadDist);
+
         for (const side of sides) {
-            side.roadDist = 99;
-            if (side.label === 'top' && building.row - 1 >= 0) {
-                for (let c = building.col; c < building.col + building.w; c++) {
-                    for (let d = 1; d <= 3 && building.row - d >= 0; d++) {
-                        if (isRoadTile(this.tiles[building.row - d][c])) {
-                            side.roadDist = Math.min(side.roadDist, d);
-                        }
+            const parkTiles = [];
+            let valid = true;
+
+            if (side.label === 'top') {
+                // Fill tiles from building edge up to (but not including) the road row
+                for (let r = building.row - 1; r > side.roadEdge; r--) {
+                    for (let c = building.col; c < building.col + building.w; c++) {
+                        if (r < 0 || r >= MAP_ROWS || c < 0 || c >= MAP_COLS) { valid = false; break; }
+                        const t = this.tiles[r][c];
+                        if (t !== TILE.GRASS && t !== TILE.SIDEWALK && t !== TILE.PARKING) { valid = false; break; }
+                        parkTiles.push({ r, c });
                     }
+                    if (!valid) break;
                 }
-            } else if (side.label === 'bottom' && building.row + building.h < MAP_ROWS) {
-                for (let c = building.col; c < building.col + building.w; c++) {
-                    for (let d = 1; d <= 3 && building.row + building.h - 1 + d < MAP_ROWS; d++) {
-                        if (isRoadTile(this.tiles[building.row + building.h - 1 + d][c])) {
-                            side.roadDist = Math.min(side.roadDist, d);
-                        }
+            } else if (side.label === 'bottom') {
+                for (let r = building.row + building.h; r < side.roadEdge; r++) {
+                    for (let c = building.col; c < building.col + building.w; c++) {
+                        if (r < 0 || r >= MAP_ROWS || c < 0 || c >= MAP_COLS) { valid = false; break; }
+                        const t = this.tiles[r][c];
+                        if (t !== TILE.GRASS && t !== TILE.SIDEWALK && t !== TILE.PARKING) { valid = false; break; }
+                        parkTiles.push({ r, c });
                     }
+                    if (!valid) break;
                 }
-            } else if (side.label === 'left' && building.col - 1 >= 0) {
-                for (let r = building.row; r < building.row + building.h; r++) {
-                    for (let d = 1; d <= 3 && building.col - d >= 0; d++) {
-                        if (isRoadTile(this.tiles[r][building.col - d])) {
-                            side.roadDist = Math.min(side.roadDist, d);
-                        }
+            } else if (side.label === 'left') {
+                for (let c = building.col - 1; c > side.roadEdge; c--) {
+                    for (let r = building.row; r < building.row + building.h; r++) {
+                        if (r < 0 || r >= MAP_ROWS || c < 0 || c >= MAP_COLS) { valid = false; break; }
+                        const t = this.tiles[r][c];
+                        if (t !== TILE.GRASS && t !== TILE.SIDEWALK && t !== TILE.PARKING) { valid = false; break; }
+                        parkTiles.push({ r, c });
                     }
+                    if (!valid) break;
                 }
-            } else if (side.label === 'right' && building.col + building.w < MAP_COLS) {
-                for (let r = building.row; r < building.row + building.h; r++) {
-                    for (let d = 1; d <= 3 && building.col + building.w - 1 + d < MAP_COLS; d++) {
-                        if (isRoadTile(this.tiles[r][building.col + building.w - 1 + d])) {
-                            side.roadDist = Math.min(side.roadDist, d);
-                        }
+            } else if (side.label === 'right') {
+                for (let c = building.col + building.w; c < side.roadEdge; c++) {
+                    for (let r = building.row; r < building.row + building.h; r++) {
+                        if (r < 0 || r >= MAP_ROWS || c < 0 || c >= MAP_COLS) { valid = false; break; }
+                        const t = this.tiles[r][c];
+                        if (t !== TILE.GRASS && t !== TILE.SIDEWALK && t !== TILE.PARKING) { valid = false; break; }
+                        parkTiles.push({ r, c });
                     }
+                    if (!valid) break;
                 }
+            }
+
+            // Need at least 1 tile and must be valid
+            if (valid && parkTiles.length > 0) {
+                for (const { r, c } of parkTiles) {
+                    this.tiles[r][c] = TILE.PARKING;
+                    building.parkingTiles.push({
+                        row: r, col: c,
+                        x: c * TILE_SIZE + TILE_SIZE / 2,
+                        y: r * TILE_SIZE + TILE_SIZE / 2
+                    });
+                }
+                return;
             }
         }
 
-        // Sort by road proximity (closest first), then shuffle ties
-        sides.sort((a, b) => a.roadDist - b.roadDist || (this.rng.next() - 0.5));
-
-        for (const side of sides) {
-            const tiles = [];
-            let valid = true;
-
-            if (side.label === 'top' || side.label === 'bottom') {
-                const r = side.label === 'top' ? building.row - 1 : building.row + building.h;
-                if (r < 0 || r >= MAP_ROWS) continue;
-                for (let c = building.col; c < building.col + building.w; c++) {
-                    if (c < 0 || c >= MAP_COLS) { valid = false; break; }
-                    const t = this.tiles[r][c];
-                    if (t !== TILE.GRASS && t !== TILE.SIDEWALK) { valid = false; break; }
-                    tiles.push({ r, c });
-                }
-            } else {
-                const c = side.label === 'left' ? building.col - 1 : building.col + building.w;
-                if (c < 0 || c >= MAP_COLS) continue;
-                for (let r = building.row; r < building.row + building.h; r++) {
-                    if (r < 0 || r >= MAP_ROWS) { valid = false; break; }
-                    const t = this.tiles[r][c];
-                    if (t !== TILE.GRASS && t !== TILE.SIDEWALK) { valid = false; break; }
-                    tiles.push({ r, c });
-                }
-            }
-
-            if (valid && tiles.length > 0) {
-                for (const { r, c } of tiles) {
+        // Fallback: if no gap exists (building directly touches road), place 1 tile on first available side
+        const fallbackSides = [
+            { dr: -1, dc: 0 }, { dr: 1, dc: 0 }, { dr: 0, dc: -1 }, { dr: 0, dc: 1 }
+        ];
+        for (const { dr, dc } of fallbackSides) {
+            const r = building.row + (dr === 1 ? building.h : dr === -1 ? -1 : 0);
+            const c = building.col + (dc === 1 ? building.w : dc === -1 ? -1 : 0);
+            if (r >= 0 && r < MAP_ROWS && c >= 0 && c < MAP_COLS) {
+                const t = this.tiles[r][c];
+                if (t === TILE.GRASS || t === TILE.SIDEWALK) {
                     this.tiles[r][c] = TILE.PARKING;
-                    building.parkingTiles.push({ row: r, col: c });
+                    building.parkingTiles.push({
+                        row: r, col: c,
+                        x: c * TILE_SIZE + TILE_SIZE / 2,
+                        y: r * TILE_SIZE + TILE_SIZE / 2
+                    });
+                    return;
                 }
-                return;
             }
         }
     }

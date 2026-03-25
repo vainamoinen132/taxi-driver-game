@@ -48,7 +48,7 @@ function pixelToTile(x, y) {
 }
 
 function isRoadTile(tile) {
-    return tile === TILE.ROAD_H || tile === TILE.ROAD_V || tile === TILE.ROAD_CROSS || tile === TILE.HIGHWAY;
+    return tile === TILE.ROAD_H || tile === TILE.ROAD_V || tile === TILE.ROAD_CROSS || tile === TILE.HIGHWAY || tile === TILE.PARKING;
 }
 
 function lerp(a, b, t) {

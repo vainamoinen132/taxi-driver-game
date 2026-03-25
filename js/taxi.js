@@ -441,16 +441,14 @@ class Taxi {
     }
 
     getInteractionBuilding(city) {
-        // Check all buildings for interaction
+        // Check if player is on or near any building's parking tiles and moving slowly
+        if (Math.abs(this.speed) > 30) return null;
         for (const b of city.buildings) {
-            const d = dist(this.x, this.y, b.px, b.py);
-            if (d < TILE_SIZE * 2.5 && Math.abs(this.speed) < 30) {
-                // Check if we're in the building's parking lot
-                for (const ptile of b.parkingTiles) {
-                    const pd = dist(this.x, this.y, ptile.x, ptile.y);
-                    if (pd < TILE_SIZE * 1.5) {
-                        return b;
-                    }
+            if (b.parkingTiles.length === 0) continue;
+            for (const ptile of b.parkingTiles) {
+                const pd = dist(this.x, this.y, ptile.x, ptile.y);
+                if (pd < TILE_SIZE * 1.8) {
+                    return b;
                 }
             }
         }
