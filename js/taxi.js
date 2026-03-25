@@ -441,13 +441,13 @@ class Taxi {
     }
 
     getInteractionBuilding(city) {
-        // Check if player is on or near any building's parking tiles and moving slowly
-        if (Math.abs(this.speed) > 30) return null;
+        // Only trigger when taxi is actually ON a parking tile and nearly stopped
+        if (Math.abs(this.speed) > 15) return null;
+        const { col, row } = pixelToTile(this.x, this.y);
         for (const b of city.buildings) {
             if (b.parkingTiles.length === 0) continue;
             for (const ptile of b.parkingTiles) {
-                const pd = dist(this.x, this.y, ptile.x, ptile.y);
-                if (pd < TILE_SIZE * 1.8) {
+                if (ptile.col === col && ptile.row === row) {
                     return b;
                 }
             }
