@@ -1184,7 +1184,7 @@ class Game {
                 <div style="text-align:center;color:#f5c518;font-size:0.9rem;margin-bottom:8px">Balance: <b>${formatMoney(this.taxi.money)}</b></div>
                 ${tabBarHtml}
                 <div class="home-tab-content">${contentHtml}</div>
-                <div style="margin-top:16px; display:flex; gap:12px; justify-content:center;">
+                <div class="home-actions">
                     <button class="menu-btn" id="home-rest-btn">😴 Rest & Sleep</button>
                     <button class="menu-btn" id="home-repair-btn">🔧 Repair Car</button>
                     <button class="menu-btn" id="home-refuel-btn">⛽ Refuel</button>
