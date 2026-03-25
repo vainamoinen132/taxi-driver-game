@@ -524,7 +524,7 @@ class Renderer {
 
                 // Determine direction (German/right-hand traffic):
                 // Horizontal: top row = LEFT, bottom row = RIGHT
-                // Vertical: left col = UP, right col = DOWN
+                // Vertical: left col = DOWN, right col = UP
                 if (tile === TILE.ROAD_H) {
                     const aboveIsH = (r - 1 >= 0) && city.tiles[r - 1][c] === TILE.ROAD_H;
                     if (!aboveIsH) {
@@ -534,9 +534,9 @@ class Renderer {
                 } else {
                     const leftIsV = (c - 1 >= 0) && city.tiles[r][c - 1] === TILE.ROAD_V;
                     if (!leftIsV) {
-                        ctx.rotate(-Math.PI / 2); // left col → UP
+                        ctx.rotate(Math.PI / 2); // left col → DOWN
                     } else {
-                        ctx.rotate(Math.PI / 2); // right col → DOWN
+                        ctx.rotate(-Math.PI / 2); // right col → UP
                     }
                 }
 
