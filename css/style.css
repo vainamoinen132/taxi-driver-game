@@ -818,6 +818,283 @@ body {
     color: #00FF88;
 }
 
+/* ======================== CHARACTER SELECT ======================== */
+.char-select-container {
+    text-align: center;
+    max-width: 900px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 24px;
+}
+
+.char-select-title {
+    font-size: 1.8rem;
+    margin-bottom: 20px;
+    color: #f5c518;
+    text-shadow: 0 2px 8px rgba(245,197,24,0.3);
+}
+
+.char-grid {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+.char-card {
+    background: rgba(255,255,255,0.06);
+    border: 2px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 130px;
+    text-align: center;
+}
+.char-card:hover {
+    background: rgba(255,255,255,0.12);
+    border-color: rgba(245,197,24,0.4);
+    transform: translateY(-3px);
+}
+.char-card.selected {
+    background: rgba(245,197,24,0.15);
+    border-color: #f5c518;
+    box-shadow: 0 0 20px rgba(245,197,24,0.25);
+}
+
+.char-card-portrait {
+    border-radius: 50%;
+    margin-bottom: 8px;
+}
+
+.char-card-name {
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: #fff;
+    line-height: 1.2;
+}
+
+.char-card-nickname {
+    font-size: 0.7rem;
+    color: #f5c518;
+    font-style: italic;
+}
+
+/* Character detail panel */
+.char-detail {
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: left;
+    margin-bottom: 16px;
+}
+
+.char-detail-header {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.char-detail-info h3 {
+    font-size: 1.2rem;
+    color: #f5c518;
+    margin-bottom: 4px;
+}
+
+.char-detail-info p {
+    font-size: 0.85rem;
+    color: #ccc;
+    line-height: 1.4;
+}
+
+.char-personality {
+    color: #9b59b6 !important;
+    font-style: italic;
+    margin-top: 4px;
+}
+
+.char-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.char-stat-section h4 {
+    font-size: 0.85rem;
+    color: #aaa;
+    margin-bottom: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    padding-bottom: 4px;
+}
+
+/* Skill bars */
+.skill-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+    font-size: 0.75rem;
+}
+
+.skill-label {
+    width: 90px;
+    white-space: nowrap;
+}
+
+.skill-bar {
+    flex: 1;
+    height: 8px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.skill-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s;
+}
+
+.skill-value {
+    width: 32px;
+    text-align: right;
+    color: #aaa;
+}
+
+/* Bonus/weakness lists */
+.char-bonus-list, .char-weakness-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.bonus-item, .weakness-item {
+    font-size: 0.8rem;
+    padding: 3px 0;
+    line-height: 1.3;
+}
+
+.bonus-item { color: #2ecc71; }
+.weakness-item { color: #e74c3c; }
+
+.char-start-info {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin-bottom: 12px;
+    font-size: 0.9rem;
+    color: #f5c518;
+}
+
+/* ======================== SAVE/LOAD ======================== */
+.save-load-container {
+    text-align: center;
+    max-width: 600px;
+    width: 90%;
+    padding: 24px;
+}
+
+.save-load-container h2 {
+    margin-bottom: 20px;
+    color: #f5c518;
+}
+
+.save-slots {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.save-slot {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 14px 16px;
+    text-align: left;
+}
+
+.save-slot.has-data {
+    border-color: rgba(245,197,24,0.3);
+}
+
+.save-slot-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.save-slot-name {
+    font-weight: bold;
+    color: #f5c518;
+    font-size: 0.9rem;
+}
+
+.save-slot-date {
+    font-size: 0.75rem;
+    color: #888;
+}
+
+.save-slot-details {
+    display: flex;
+    gap: 14px;
+    font-size: 0.8rem;
+    color: #ccc;
+    margin-bottom: 8px;
+}
+
+.save-slot-empty {
+    text-align: center;
+    color: #666;
+    padding: 8px;
+    font-size: 0.9rem;
+}
+
+.save-slot-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.slot-btn {
+    font-family: inherit;
+    font-size: 0.8rem;
+    padding: 6px 14px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    color: #fff;
+    background: rgba(255,255,255,0.1);
+    transition: background 0.2s;
+}
+
+.slot-btn:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+.slot-btn.primary {
+    background: #2ecc71;
+    color: #000;
+}
+
+.slot-btn.primary:hover {
+    background: #27ae60;
+}
+
+.slot-btn.danger {
+    background: rgba(231,76,60,0.3);
+    color: #e74c3c;
+}
+
+.slot-btn.danger:hover {
+    background: rgba(231,76,60,0.5);
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

@@ -117,7 +117,8 @@ class Taxi {
     get maxSpeed() {
         const base = this._carStats ? this._carStats.maxSpeed : 180;
         const upgBonus = UPGRADES.engine.levels[this.upgradeLevels.engine].maxSpeed - 180;
-        return base + upgBonus;
+        const charMod = (this.characterBonuses && this.characterBonuses.maxSpeed) || 1.0;
+        return (base + upgBonus) * charMod;
     }
     get acceleration() {
         const base = this._carStats ? this._carStats.acceleration : 80;
@@ -142,7 +143,8 @@ class Taxi {
     get maxHealth() {
         const base = this._carStats ? this._carStats.durability : 100;
         const upgBonus = UPGRADES.body.levels[this.upgradeLevels.body].durability - 100;
-        return base + upgBonus;
+        const charMod = (this.characterBonuses && this.characterBonuses.durability) || 1.0;
+        return Math.round((base + upgBonus) * charMod);
     }
     get fareBonus() {
         const base = this._carStats ? this._carStats.fareBonus : 1.0;
@@ -150,7 +152,9 @@ class Taxi {
         return base + upgBonus;
     }
     get fuelEfficiency() {
-        return this._carStats ? this._carStats.fuelEfficiency : 1.0;
+        const base = this._carStats ? this._carStats.fuelEfficiency : 1.0;
+        const charMod = (this.characterBonuses && this.characterBonuses.fuelEfficiency) || 1.0;
+        return base * charMod;
     }
 
     update(dt, city) {
@@ -269,10 +273,11 @@ class Taxi {
             }
         }
 
-        // Fatigue increases while driving (endurance skill slows it)
+        // Fatigue increases while driving (endurance skill + character bonus slow it)
         if (Math.abs(this.speed) > 5) {
             const enduranceLvl = (this.skills && this.skills.endurance) || 0;
-            this.fatigue += FATIGUE_RATE * (1 - enduranceLvl * 0.15) * dt;
+            const charFatigueMod = (this.characterBonuses && this.characterBonuses.fatigueRate) || 1.0;
+            this.fatigue += FATIGUE_RATE * (1 - enduranceLvl * 0.15) * charFatigueMod * dt;
             this.fatigue = Math.min(this.fatigue, MAX_FATIGUE);
         }
     }
@@ -365,14 +370,16 @@ class Taxi {
 
     repair() {
         const needed = this.maxHealth - this.health;
-        const cost = needed * REPAIR_COST_PER_PERCENT;
+        const charRepairMod = (this.characterBonuses && this.characterBonuses.repairCost) || 1.0;
+        const costPerPct = REPAIR_COST_PER_PERCENT * charRepairMod;
+        const cost = needed * costPerPct;
         if (this.money >= cost) {
             this.money -= cost;
             this.health = this.maxHealth;
             return { success: true, cost };
         }
         // Partial repair
-        const affordable = this.money / REPAIR_COST_PER_PERCENT;
+        const affordable = this.money / costPerPct;
         this.health += affordable;
         const spent = this.money;
         this.money = 0;

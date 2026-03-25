@@ -34,7 +34,14 @@ class Game {
         this._setupInput();
     }
 
-    start() {
+    start(characterId, loadData) {
+        // Stop any existing game loop
+        this.running = false;
+
+        this.characterId = characterId || 'mike';
+        this.character = CHARACTERS.find(c => c.id === this.characterId) || CHARACTERS[0];
+        this.saveSystem = new SaveLoadSystem();
+
         // Generate city
         this.city = new City();
 
@@ -43,14 +50,25 @@ class Game {
 
         // Create camera
         this.camera = new Camera(window.innerWidth, window.innerHeight);
-        window.addEventListener('resize', () => {
-            this.camera.resize(window.innerWidth, window.innerHeight);
-        });
+        if (!this._resizeHandler) {
+            this._resizeHandler = () => {
+                if (this.camera) this.camera.resize(window.innerWidth, window.innerHeight);
+            };
+            window.addEventListener('resize', this._resizeHandler);
+        }
 
         // Create player taxi near home
         const home = this.city.getBuildingsOfType(BUILDING_TYPE.HOME)[0];
         const startPos = home ? this.city.getRoadNearBuilding(home) : this.city.getRandomRoadPosition();
         this.taxi = new Taxi(startPos.x, startPos.y);
+
+        // Apply character bonuses
+        this._applyCharacterBonuses();
+
+        // Apply character starting money
+        if (!loadData) {
+            this.taxi.money = this.character.startingMoney;
+        }
 
         // Create AI taxis
         this.aiTaxis = [];
@@ -68,15 +86,15 @@ class Game {
         // Create event manager
         this.eventMgr = new EventManager(this.city, this.passengerMgr);
 
+        // Create challenge manager
+        this.challengeMgr = new ChallengeManager();
+
         // Create hazard manager
         this.hazardMgr = new HazardManager(this.city);
         this.hazardMgr.setChallengeManager(this.challengeMgr);
 
         // Create app order manager
         this.appOrderMgr = new AppOrderManager(this.city);
-
-        // Create challenge manager
-        this.challengeMgr = new ChallengeManager();
 
         // Create GPS system
         this.gps = new GPSRouteSystem(this.city);
@@ -134,11 +152,14 @@ class Game {
         const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1); // cap dt
         this.lastTime = timestamp;
 
-        if (!this.paused) {
-            this._update(dt);
+        try {
+            if (!this.paused) {
+                this._update(dt);
+            }
+            this._render(dt);
+        } catch (err) {
+            console.error('Game loop error:', err);
         }
-
-        this._render(dt);
         requestAnimationFrame((t) => this._loop(t));
     }
 
@@ -667,10 +688,21 @@ class Game {
         } else {
             const fareMultiplier = this.weather.getFareMultiplier(this.gameTime);
             const rideStats = this.taxi.getRideStats();
-            const result = passenger.calculateFare(this.taxi.fareBonus, fareMultiplier, this.taxi.rideDamageTaken, rideStats.rideTime, rideStats.waitTime, rideStats.avgSpeed);
-            // Negotiation skill boosts tips by 10% per level
-            const negLvl = (this.taxi.skills && this.taxi.skills.negotiation) || 0;
-            if (negLvl > 0) result.tip = Math.round(result.tip * (1 + negLvl * 0.10));
+            // Apply character fareBonus modifier + time-of-day bonuses
+            let charFareBonus = this.getCharacterBonus('fareBonus');
+            const hour = this.gameTime / 60;
+            if (hour >= 20 || hour < 6) {
+                charFareBonus *= this.getCharacterBonus('nightFareBonus');
+            } else {
+                charFareBonus *= this.getCharacterBonus('dayFarePenalty');
+            }
+            const result = passenger.calculateFare(this.taxi.fareBonus * charFareBonus, fareMultiplier, this.taxi.rideDamageTaken, rideStats.rideTime, rideStats.waitTime, rideStats.avgSpeed);
+            // Apply character tipChance/tipAmount modifiers
+            const charTipMult = this.getCharacterBonus('tipAmount');
+            if (charTipMult !== 1.0) result.tip = Math.round(result.tip * charTipMult);
+            // Charisma skill boosts tips
+            const charismaLvl = (this.taxi.skills && this.taxi.skills.charisma) || 0;
+            if (charismaLvl > 0.5) result.tip = Math.round(result.tip * (1 + (charismaLvl - 0.5) * 0.3));
             const total = result.fare + result.tip;
 
             if (result.message) {
@@ -935,7 +967,8 @@ class Game {
         // Add repair option
         const repairItem = document.createElement('div');
         repairItem.className = 'garage-item';
-        const repairCost = (this.taxi.maxHealth - this.taxi.health) * REPAIR_COST_PER_PERCENT;
+        const charRepairMod = this.getCharacterBonus('repairCost');
+        const repairCost = (this.taxi.maxHealth - this.taxi.health) * REPAIR_COST_PER_PERCENT * charRepairMod;
         repairItem.innerHTML = `
             <h4>🔧 Full Repair</h4>
             <p>Car Health: ${Math.floor(this.taxi.health)}/${this.taxi.maxHealth}</p>
@@ -1272,12 +1305,75 @@ class Game {
         }
     }
 
+    _applyCharacterBonuses() {
+        if (!this.character || !this.taxi) return;
+        
+        // Store character modifiers on taxi for use in game systems
+        this.taxi.characterBonuses = {};
+        
+        for (const bonus of this.character.bonuses) {
+            this.taxi.characterBonuses[bonus.stat] = bonus.mult;
+        }
+        for (const weakness of this.character.weaknesses) {
+            this.taxi.characterBonuses[weakness.stat] = weakness.mult;
+        }
+
+        // Set character skills on taxi (used by taxi.update for fatigue, tire wear etc.)
+        this.taxi.skills = this.character.skills;
+    }
+
+    getCharacterBonus(stat) {
+        if (!this.taxi || !this.taxi.characterBonuses) return 1.0;
+        return this.taxi.characterBonuses[stat] || 1.0;
+    }
+
+    saveGame(slotIndex) {
+        if (!this.saveSystem || !this.taxi) return false;
+        return this.saveSystem.save(slotIndex, {
+            characterId: this.characterId,
+            taxi: this.taxi,
+            gameTime: this.gameTime
+        });
+    }
+
+    loadSavedData(saveData) {
+        if (!saveData || !saveData.taxi) return;
+        
+        const t = this.taxi;
+        const s = saveData.taxi;
+        
+        t.money = s.money || 500;
+        t.fuel = s.fuel || t.fuelCapacity;
+        t.health = s.health || t.maxHealth;
+        t.totalKm = s.totalKm || 0;
+        t.totalFares = s.totalFares || 0;
+        t.totalEarnings = s.totalEarnings || 0;
+        t.day = s.day || 1;
+        t.totalDamageEvents = s.totalDamageEvents || 0;
+        t.totalFines = s.totalFines || 0;
+        t.rating = s.rating || RATING_INITIAL;
+        t.ratingHistory = s.ratingHistory || [];
+        t.tireHealth = s.tireHealth || TIRE_MAX_HEALTH;
+        t.fatigue = s.fatigue || 0;
+        t.damageVisual = s.damageVisual || 0;
+        
+        if (s.carModelId) {
+            t.carModelId = s.carModelId;
+            t._applyCarModel();
+        }
+        if (s.ownedCars) t.ownedCars = s.ownedCars;
+        if (s.upgradeLevels) t.upgradeLevels = s.upgradeLevels;
+        
+        if (saveData.gameTime) this.gameTime = saveData.gameTime;
+    }
+
     quit() {
         this.running = false;
         this.paused = false;
         document.getElementById('pause-menu').classList.add('hidden');
         document.getElementById('garage-menu').classList.add('hidden');
         document.getElementById('stats-menu').classList.add('hidden');
+        document.getElementById('save-screen').classList.add('hidden');
         const homeScreen = document.getElementById('home-screen');
         if (homeScreen) homeScreen.classList.add('hidden');
     }

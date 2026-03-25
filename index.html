@@ -13,9 +13,58 @@
             <h1 class="game-title">🚕 TAXI DRIVER</h1>
             <h2 class="game-subtitle">City Hustle</h2>
             <div class="menu-buttons">
-                <button id="btn-new-game" class="menu-btn primary">New Game</button>
-                <button id="btn-how-to-play" class="menu-btn">How to Play</button>
+                <button id="btn-new-game" class="menu-btn primary">🎮 New Game</button>
+                <button id="btn-continue" class="menu-btn" style="display:none">▶️ Continue</button>
+                <button id="btn-load-game" class="menu-btn">📂 Load Game</button>
+                <button id="btn-how-to-play" class="menu-btn">❓ How to Play</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Character Select Screen -->
+    <div id="character-select" class="screen">
+        <div class="char-select-container">
+            <h2 class="char-select-title">Choose Your Driver</h2>
+            <div id="char-grid" class="char-grid"></div>
+            <div id="char-detail" class="char-detail hidden">
+                <div class="char-detail-header">
+                    <canvas id="char-portrait-large" width="120" height="120"></canvas>
+                    <div class="char-detail-info">
+                        <h3 id="char-detail-name"></h3>
+                        <p id="char-detail-bio"></p>
+                        <p id="char-detail-personality" class="char-personality"></p>
+                    </div>
+                </div>
+                <div class="char-stats-grid">
+                    <div class="char-stat-section">
+                        <h4>Skills</h4>
+                        <div id="char-skills"></div>
+                    </div>
+                    <div class="char-stat-section">
+                        <h4>Bonuses</h4>
+                        <ul id="char-bonuses" class="char-bonus-list"></ul>
+                    </div>
+                    <div class="char-stat-section">
+                        <h4>Weaknesses</h4>
+                        <ul id="char-weaknesses" class="char-weakness-list"></ul>
+                    </div>
+                </div>
+                <div class="char-start-info">
+                    <span id="char-start-money"></span>
+                    <span id="char-start-car"></span>
+                </div>
+                <button id="btn-start-game" class="menu-btn primary">🚕 Start Driving!</button>
+            </div>
+            <button id="btn-char-back" class="menu-btn">Back</button>
+        </div>
+    </div>
+
+    <!-- Load Game Screen -->
+    <div id="load-screen" class="screen">
+        <div class="save-load-container">
+            <h2>📂 Load Game</h2>
+            <div id="load-slots" class="save-slots"></div>
+            <button id="btn-load-back" class="menu-btn">Back</button>
         </div>
     </div>
 
@@ -105,11 +154,21 @@
         <!-- Minimap -->
         <canvas id="minimap"></canvas>
 
+        <!-- Save Game Screen (accessible from pause) -->
+        <div id="save-screen" class="overlay hidden">
+            <div class="overlay-content wide">
+                <h2>💾 Save Game</h2>
+                <div id="save-slots" class="save-slots"></div>
+                <button id="btn-save-close" class="menu-btn">Close</button>
+            </div>
+        </div>
+
         <!-- Pause Menu -->
         <div id="pause-menu" class="overlay hidden">
             <div class="overlay-content">
                 <h2>PAUSED</h2>
                 <button id="btn-resume" class="menu-btn primary">Resume</button>
+                <button id="btn-save" class="menu-btn">💾 Save Game</button>
                 <button id="btn-upgrades" class="menu-btn">🔧 Garage & Upgrades</button>
                 <button id="btn-stats" class="menu-btn">📊 Statistics</button>
                 <button id="btn-quit" class="menu-btn danger">Quit to Menu</button>
@@ -164,6 +223,7 @@
     <script src="js/audio.js"></script>
     <script src="js/constants.js"></script>
     <script src="js/utils.js"></script>
+    <script src="js/characters.js"></script>
     <script src="js/city.js"></script>
     <script src="js/camera.js"></script>
     <script src="js/taxi.js"></script>
