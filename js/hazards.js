@@ -20,18 +20,61 @@ class HazardManager {
     }
 
     _placeSpeedCameras() {
-        for (const rRow of this.city.horizontalRoads) {
-            for (const cCol of this.city.verticalRoads) {
-                if (Math.random() < 0.1) {
-                    this.speedCameras.push({
-                        x: cCol * TILE_SIZE + TILE_SIZE,
-                        y: rRow * TILE_SIZE + TILE_SIZE,
-                        cooldown: 0,
-                        radius: TILE_SIZE * 3,
-                    });
+        // Place speed cameras on sidewalk tiles adjacent to roads (realistic placement)
+        const candidates = this._findSpeedCamSidewalkSpots();
+        // Pick ~8 spots spread across the map
+        const numCams = Math.min(8, candidates.length);
+        const shuffled = candidates.sort(() => Math.random() - 0.5);
+        for (let i = 0; i < numCams; i++) {
+            const spot = shuffled[i];
+            this.speedCameras.push({
+                x: spot.x,
+                y: spot.y,
+                col: spot.col,
+                row: spot.row,
+                cooldown: 0,
+                radius: TILE_SIZE * 2.5, // detection range covers adjacent road
+                relocateTimer: 120 + Math.random() * 180, // relocate every 2-5 minutes
+            });
+        }
+    }
+
+    _findSpeedCamSidewalkSpots() {
+        // Find sidewalk tiles that are directly adjacent to a road tile
+        const spots = [];
+        for (let r = 1; r < MAP_ROWS - 1; r++) {
+            for (let c = 1; c < MAP_COLS - 1; c++) {
+                if (this.city.tiles[r][c] !== TILE.SIDEWALK) continue;
+                // Must be next to a road
+                const adjRoad =
+                    isRoadTile(this.city.tiles[r - 1][c]) ||
+                    isRoadTile(this.city.tiles[r + 1][c]) ||
+                    isRoadTile(this.city.tiles[r][c - 1]) ||
+                    isRoadTile(this.city.tiles[r][c + 1]);
+                if (adjRoad) {
+                    const pos = tileToPixel(c, r);
+                    spots.push({ x: pos.x, y: pos.y, col: c, row: r });
                 }
             }
         }
+        return spots;
+    }
+
+    _relocateSpeedCamera(cam) {
+        // Move a speed camera to a new sidewalk spot
+        const candidates = this._findSpeedCamSidewalkSpots();
+        if (candidates.length === 0) return;
+        // Pick a spot far from current position
+        const farSpots = candidates.filter(s =>
+            dist(s.x, s.y, cam.x, cam.y) > TILE_SIZE * 10
+        );
+        const pool = farSpots.length > 0 ? farSpots : candidates;
+        const spot = pool[Math.floor(Math.random() * pool.length)];
+        cam.x = spot.x;
+        cam.y = spot.y;
+        cam.col = spot.col;
+        cam.row = spot.row;
+        cam.relocateTimer = 120 + Math.random() * 180; // next relocation in 2-5 min
     }
 
     _placeTrafficLights() {
@@ -94,14 +137,21 @@ class HazardManager {
             light.timer += dt;
             if (light.cooldown > 0) light.cooldown -= dt;
 
-            // Check red light running (use intersection center for detection)
+            // Check red light running — only fine when taxi actually enters the
+            // intersection (the 2×2 ROAD_CROSS area), not when approaching
             if (light.cooldown <= 0 && light.enforces !== false) {
                 const state = this.getTrafficLightState(light);
                 if (state === 'red') {
-                    const checkX = light.intersectionX || light.x;
-                    const checkY = light.intersectionY || light.y;
-                    const d = dist(taxi.x, taxi.y, checkX, checkY);
-                    if (d < light.radius && Math.abs(taxi.speed) > 20) {
+                    // Check if taxi is actually inside the intersection tiles
+                    const taxiTile = pixelToTile(taxi.x, taxi.y);
+                    const intCenterX = light.intersectionX || light.x;
+                    const intCenterY = light.intersectionY || light.y;
+                    const intTile = pixelToTile(intCenterX, intCenterY);
+                    // Intersection occupies 2×2 tiles — check if taxi is on any of them
+                    const onIntersection = this.city.tiles[taxiTile.row] &&
+                        this.city.tiles[taxiTile.row][taxiTile.col] === TILE.ROAD_CROSS;
+                    const nearEnough = dist(taxi.x, taxi.y, intCenterX, intCenterY) < TILE_SIZE * 1.5;
+                    if (onIntersection && nearEnough && Math.abs(taxi.speed) > 20) {
                         taxi.money -= RED_LIGHT_FINE;
                         taxi.totalFines++;
                         taxi.currentDayFines = (taxi.currentDayFines || 0) + 1;
@@ -117,10 +167,17 @@ class HazardManager {
         // Speed camera checks — use local speed limit
         const localLimit = this._getLocalSpeedLimit(taxi);
         for (const cam of this.speedCameras) {
-            if (cam.cooldown > 0) {
-                cam.cooldown -= dt;
-                continue;
+            if (cam.cooldown > 0) cam.cooldown -= dt;
+
+            // Relocate timer — cameras move to new spots periodically
+            if (cam.relocateTimer !== undefined) {
+                cam.relocateTimer -= dt;
+                if (cam.relocateTimer <= 0) {
+                    this._relocateSpeedCamera(cam);
+                }
             }
+
+            if (cam.cooldown > 0) continue;
             const d = dist(taxi.x, taxi.y, cam.x, cam.y);
             if (d < cam.radius && taxi.currentDisplaySpeed > localLimit) {
                 const fine = SPEED_FINE_AMOUNT + Math.floor((taxi.currentDisplaySpeed - localLimit) * 0.5);

@@ -31,8 +31,7 @@ class HUD {
 
     update(taxi, gameTime, hazardManager, eventManager, appOrderMgr, weather, radio) {
         // Money
-        const eph = taxi.earningsPerHour > 0 ? ` (${formatMoney(taxi.earningsPerHour)}/hr)` : '';
-        this.moneyEl.textContent = Math.floor(taxi.money).toLocaleString() + eph;
+        this.moneyEl.textContent = '$' + Math.floor(taxi.money).toLocaleString();
 
         // Fuel bar
         const fuelPct = (taxi.fuel / taxi.fuelCapacity) * 100;

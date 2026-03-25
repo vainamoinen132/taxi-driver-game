@@ -173,7 +173,7 @@ class Renderer {
         this._drawDashboard(ctx, taxi, weather, gameTime);
 
         // Draw minimap
-        this._drawMinimap(city, taxi, aiTaxis, passengerMgr, eventMgr, trafficMgr);
+        this._drawMinimap(city, taxi, aiTaxis, passengerMgr, eventMgr, trafficMgr, hazardMgr);
     }
 
     _drawTiles(ctx, cam, city, startCol, endCol, startRow, endRow) {
@@ -934,23 +934,45 @@ class Renderer {
 
     _drawSpeedCameras(ctx, cam, hazardMgr) {
         for (const sc of hazardMgr.speedCameras) {
-            if (!cam.isVisible(sc.x - 10, sc.y - 20, 20, 20)) continue;
+            if (!cam.isVisible(sc.x - 16, sc.y - 28, 32, 32)) continue;
             const sx = sc.x - cam.x;
             const sy = sc.y - cam.y;
+            const justFlashed = sc.cooldown > 28; // flash effect for ~2s after catching
 
-            // Camera pole
-            ctx.fillStyle = '#666';
-            ctx.fillRect(sx - 2, sy - 15, 4, 15);
+            // Base plate (on sidewalk)
+            ctx.fillStyle = '#555';
+            ctx.fillRect(sx - 5, sy + 2, 10, 4);
 
-            // Camera box
-            ctx.fillStyle = sc.cooldown > 0 ? '#ff4444' : '#333';
-            ctx.fillRect(sx - 6, sy - 20, 12, 8);
+            // Pole
+            ctx.fillStyle = '#777';
+            ctx.fillRect(sx - 2, sy - 22, 4, 24);
+
+            // Camera housing
+            ctx.fillStyle = justFlashed ? '#ff3333' : '#2c2c2c';
+            ctx.fillRect(sx - 8, sy - 28, 16, 10);
+            ctx.strokeStyle = '#999';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(sx - 8, sy - 28, 16, 10);
 
             // Lens
-            ctx.fillStyle = sc.cooldown > 0 ? '#ff0000' : '#888';
+            ctx.fillStyle = justFlashed ? '#ff0000' : '#4488ff';
             ctx.beginPath();
-            ctx.arc(sx, sy - 16, 3, 0, Math.PI * 2);
+            ctx.arc(sx, sy - 23, 3, 0, Math.PI * 2);
             ctx.fill();
+
+            // Flash effect when triggered
+            if (justFlashed) {
+                ctx.fillStyle = 'rgba(255,255,100,0.3)';
+                ctx.beginPath();
+                ctx.arc(sx, sy - 23, 20, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Small "SPEED CAM" label
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            ctx.font = '7px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('📸', sx, sy - 30);
         }
     }
 
@@ -1669,7 +1691,7 @@ class Renderer {
         ctx.closePath();
     }
 
-    _drawMinimap(city, taxi, aiTaxis, passengerMgr, eventMgr, trafficMgr) {
+    _drawMinimap(city, taxi, aiTaxis, passengerMgr, eventMgr, trafficMgr, hazardMgr) {
         const mctx = this.mctx;
         const mw = this.minimap.width;
         const mh = this.minimap.height;
@@ -1726,6 +1748,14 @@ class Renderer {
             mctx.fillStyle = 'rgba(150,150,150,0.5)';
             for (const car of trafficMgr.cars) {
                 mctx.fillRect(car.x * scaleX - 1, car.y * scaleY - 1, 2, 2);
+            }
+        }
+
+        // Draw speed cameras on minimap
+        if (hazardMgr && hazardMgr.speedCameras) {
+            for (const sc of hazardMgr.speedCameras) {
+                mctx.fillStyle = '#4488ff';
+                mctx.fillRect(sc.x * scaleX - 2, sc.y * scaleY - 2, 4, 4);
             }
         }
 
