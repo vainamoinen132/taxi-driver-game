@@ -522,19 +522,21 @@ class Renderer {
                 ctx.save();
                 ctx.translate(sx + hT, sy + hT);
 
-                // Determine direction
+                // Determine direction (German/right-hand traffic):
+                // Horizontal: top row = LEFT, bottom row = RIGHT
+                // Vertical: left col = UP, right col = DOWN
                 if (tile === TILE.ROAD_H) {
                     const aboveIsH = (r - 1 >= 0) && city.tiles[r - 1][c] === TILE.ROAD_H;
-                    if (aboveIsH) {
-                        ctx.rotate(Math.PI); // bottom lane → LEFT
+                    if (!aboveIsH) {
+                        ctx.rotate(Math.PI); // top lane → LEFT
                     }
-                    // else top lane → RIGHT
+                    // else bottom lane → RIGHT (no rotation)
                 } else {
                     const leftIsV = (c - 1 >= 0) && city.tiles[r][c - 1] === TILE.ROAD_V;
-                    if (leftIsV) {
-                        ctx.rotate(-Math.PI / 2); // right col → UP
+                    if (!leftIsV) {
+                        ctx.rotate(-Math.PI / 2); // left col → UP
                     } else {
-                        ctx.rotate(Math.PI / 2); // left col → DOWN
+                        ctx.rotate(Math.PI / 2); // right col → DOWN
                     }
                 }
 
