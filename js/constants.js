@@ -3,8 +3,8 @@
 // ============================================================
 
 const TILE_SIZE = 64;
-const MAP_COLS = 40;
-const MAP_ROWS = 30;
+const MAP_COLS = 55;
+const MAP_ROWS = 40;
 const MAP_WIDTH = MAP_COLS * TILE_SIZE;
 const MAP_HEIGHT = MAP_ROWS * TILE_SIZE;
 
@@ -99,6 +99,9 @@ const DISTRICTS = [
     { id: 'industrial', name: 'Industrial Zone', color: '#7f8c8d' },
     { id: 'university', name: 'University Area', color: '#9b59b6' },
     { id: 'financial', name: 'Financial District', color: '#27ae60' },
+    { id: 'chinatown', name: 'Chinatown', color: '#e74c3c' },
+    { id: 'suburbs', name: 'Suburbs', color: '#1abc9c' },
+    { id: 'arts', name: 'Arts Quarter', color: '#f39c12' },
 ];
 
 // Building name pools for procedural generation (scalable)
@@ -283,9 +286,9 @@ const DAY_START_HOUR = 6;
 
 // Passenger spawn
 const BASE_PASSENGER_SPAWN_INTERVAL = 1800; // ms — more passengers
-const MAX_PASSENGERS = 20;
-const MAX_AI_TAXIS = 2;
-const MAX_NPC_CARS = 6;
+const MAX_PASSENGERS = 30;
+const MAX_AI_TAXIS = 3;
+const MAX_NPC_CARS = 10;
 
 // Fatigue
 const MAX_FATIGUE = 100;
@@ -333,12 +336,12 @@ const LUGGAGE_LOAD_TIME = 2.0; // seconds
 const LUGGAGE_TIP_BONUS = 1.5;
 
 // Pedestrians
-const MAX_PEDESTRIANS = 15;
+const MAX_PEDESTRIANS = 25;
 const PEDESTRIAN_SPEED = 25;
 const PEDESTRIAN_HIT_FINE = 75;
 
 // Buses
-const MAX_BUSES = 2;
+const MAX_BUSES = 3;
 const BUS_SPEED = 35;
 const BUS_STOP_TIME = 4; // seconds at each stop
 

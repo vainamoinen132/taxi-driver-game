@@ -11,6 +11,8 @@ class EventManager {
         this.nextEventTime = rand(3, 6); // game minutes until first event
         this.gameMinutes = 0;
         this.eventHistory = [];
+        this._eventBlockedTiles = [];
+        this._eventSlowTiles = [];
 
         // Define possible events
         this.eventDefs = [
@@ -151,6 +153,15 @@ class EventManager {
             this.activeEvent._spawnCooldown -= dt;
 
             if (this.eventTimer <= 0) {
+                // Clean up blocked/slow tiles from event
+                if (this._eventBlockedTiles.length > 0) {
+                    this.city.unblockRoadTiles(this._eventBlockedTiles);
+                    this._eventBlockedTiles = [];
+                }
+                if (this._eventSlowTiles.length > 0) {
+                    this.city.removeSlowTiles(this._eventSlowTiles);
+                    this._eventSlowTiles = [];
+                }
                 this.activeEvent = null;
                 this.passengerManager.eventMultiplier = 1;
             }
@@ -178,6 +189,28 @@ class EventManager {
         this.eventTimer = event.duration;
         this.passengerManager.eventMultiplier = 2;
         this.eventHistory.push(event.name);
+
+        // Apply road effects based on special type
+        if (event.special) {
+            const building = buildings[0];
+            if (event.special === 'parade') {
+                const tiles = this._getEventRoadTiles(building, randInt(4, 6));
+                this._eventBlockedTiles = tiles;
+                this.city.blockRoadTiles(tiles);
+            } else if (event.special === 'construction') {
+                const tiles = this._getEventRoadTiles(building, randInt(3, 5));
+                this._eventSlowTiles = tiles;
+                this.city.addSlowTiles(tiles);
+            } else if (event.special === 'marathon') {
+                const tiles = this._getEventRoadTiles(building, randInt(6, 8));
+                this._eventBlockedTiles = tiles;
+                this.city.blockRoadTiles(tiles);
+            } else if (event.special === 'festival') {
+                const tiles = this._getEventRoadTiles(building, randInt(4, 6));
+                this._eventSlowTiles = tiles;
+                this.city.addSlowTiles(tiles);
+            }
+        }
     }
 
     getActiveEventMessage() {
@@ -188,5 +221,28 @@ class EventManager {
         if (!this.activeEvent) return null;
         const buildings = this.city.getBuildingsOfType(this.activeEvent.buildingType);
         return buildings.length > 0 ? buildings[0] : null;
+    }
+
+    _getEventRoadTiles(building, count) {
+        const tiles = [];
+        if (!building) return tiles;
+        const startCol = Math.floor(building.px / TILE_SIZE);
+        const startRow = Math.floor(building.py / TILE_SIZE);
+        // Search outward from building for road tiles
+        for (let radius = 1; radius < 6 && tiles.length < count; radius++) {
+            for (let dr = -radius; dr <= radius; dr++) {
+                for (let dc = -radius; dc <= radius; dc++) {
+                    const r = startRow + dr;
+                    const c = startCol + dc;
+                    if (r >= 0 && r < MAP_ROWS && c >= 0 && c < MAP_COLS) {
+                        if (isRoadTile(this.city.tiles[r][c])) {
+                            tiles.push({ row: r, col: c });
+                            if (tiles.length >= count) return tiles;
+                        }
+                    }
+                }
+            }
+        }
+        return tiles;
     }
 }

@@ -243,8 +243,16 @@ class SaveLoadSystem {
                 carModelId: gameState.taxi.carModelId,
                 ownedCars: gameState.taxi.ownedCars,
                 upgradeLevels: gameState.taxi.upgradeLevels,
-                damageVisual: gameState.taxi.damageVisual
+                damageVisual: gameState.taxi.damageVisual,
+                skills: gameState.taxi.skills || null,
+                dayEarnings: gameState.taxi.dayEarnings || [],
+                currentDayEarnings: gameState.taxi.currentDayEarnings || 0,
+                currentDayFares: gameState.taxi.currentDayFares || 0,
+                currentDayKm: gameState.taxi.currentDayKm || 0,
+                currentDayFines: gameState.taxi.currentDayFines || 0,
+                currentDayTopFare: gameState.taxi.currentDayTopFare || 0
             },
+            citySeed: gameState.citySeed || null,
             gameTime: gameState.gameTime
         };
 

@@ -11,6 +11,11 @@ class PolicePatrolSystem {
         this.pullOverTimer = 0;
         this.fineAmount = 0;
         this.violationType = null;
+        this.hazardMgr = null;
+    }
+
+    setHazardManager(hazardMgr) {
+        this.hazardMgr = hazardMgr;
     }
 
     update(dt, playerTaxi) {
@@ -126,11 +131,18 @@ class PolicePatrolSystem {
             return { type: 'speeding', speed: playerTaxi.currentDisplaySpeed, limit: 120 };
         }
 
-        // Wrong way driving (simplified check)
-        // This would need more sophisticated road direction checking
-
-        // Running red light (would need traffic light data)
-        // For now, just check if player is going fast through intersections
+        // Red light running - check if player is near a red traffic light while moving fast
+        if (this.hazardMgr) {
+            for (const light of this.hazardMgr.trafficLights) {
+                const state = this.hazardMgr.getTrafficLightState(light);
+                if (state === 'red') {
+                    const d = dist(playerTaxi.x, playerTaxi.y, light.x, light.y);
+                    if (d < TILE_SIZE * 1.5 && Math.abs(playerTaxi.speed) > 30) {
+                        return { type: 'red_light' };
+                    }
+                }
+            }
+        }
 
         return null;
     }
@@ -140,11 +152,13 @@ class PolicePatrolSystem {
         police.pullOverTarget = playerTaxi;
         this.pullOverActive = true;
         this.violationType = violation.type;
-        
+
         // Calculate fine
         if (violation.type === 'speeding') {
             const overSpeed = violation.speed - violation.limit;
             this.fineAmount = 50 + Math.floor(overSpeed * 2);
+        } else if (violation.type === 'red_light') {
+            this.fineAmount = RED_LIGHT_FINE * 2; // Police fine is double the camera fine
         }
     }
 

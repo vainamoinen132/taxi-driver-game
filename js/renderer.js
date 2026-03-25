@@ -105,7 +105,17 @@ class Renderer {
 
         // Draw AI taxis
         for (const ai of aiTaxis) {
-            this._drawCar(ctx, cam, ai.x, ai.y, ai.angle, ai.width, ai.height, ai.color, false, weather);
+            this._drawCar(ctx, cam, ai.x, ai.y, ai.angle, ai.width, ai.height, ai.companyColor || ai.color, false, weather);
+            // Draw company label above AI taxi
+            const sx = ai.x - cam.x;
+            const sy = ai.y - cam.y;
+            if (sx > -100 && sx < ctx.canvas.width + 100 && sy > -100 && sy < ctx.canvas.height + 100) {
+                ctx.font = 'bold 9px sans-serif';
+                ctx.fillStyle = ai.companyColor || '#fff';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText(ai.companyName || 'Taxi', sx, sy - ai.height / 2 - 4);
+            }
         }
 
         // Update and draw particles
@@ -323,6 +333,52 @@ class Renderer {
                         ctx.fillRect(sx + 12, sy + 24, 2, 8);
                         ctx.fillRect(sx + 30, sy + 24, 2, 8);
                     }
+                }
+
+                // Draw blocked tile overlay (parade, marathon — red/white barriers)
+                if (city.blockedTiles && city.blockedTiles.has(`${r},${c}`)) {
+                    ctx.fillStyle = 'rgba(200, 30, 30, 0.45)';
+                    ctx.fillRect(sx, sy, TILE_SIZE + 1, TILE_SIZE + 1);
+                    // Striped barrier lines
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 3;
+                    ctx.setLineDash([6, 6]);
+                    ctx.beginPath();
+                    ctx.moveTo(sx + 4, sy + TILE_SIZE / 2 - 4);
+                    ctx.lineTo(sx + TILE_SIZE - 4, sy + TILE_SIZE / 2 - 4);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(sx + 4, sy + TILE_SIZE / 2 + 4);
+                    ctx.lineTo(sx + TILE_SIZE - 4, sy + TILE_SIZE / 2 + 4);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    // Barrier icon
+                    ctx.font = 'bold 16px sans-serif';
+                    ctx.fillStyle = '#fff';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('🚧', sx + TILE_SIZE / 2, sy + TILE_SIZE / 2);
+                }
+
+                // Draw slow tile overlay (construction, festival — orange cones)
+                if (city.slowTiles && city.slowTiles.has(`${r},${c}`)) {
+                    ctx.fillStyle = 'rgba(243, 156, 18, 0.35)';
+                    ctx.fillRect(sx, sy, TILE_SIZE + 1, TILE_SIZE + 1);
+                    // Orange diagonal stripes
+                    ctx.strokeStyle = 'rgba(230, 126, 34, 0.6)';
+                    ctx.lineWidth = 2;
+                    for (let d = -TILE_SIZE; d < TILE_SIZE * 2; d += 12) {
+                        ctx.beginPath();
+                        ctx.moveTo(sx + d, sy);
+                        ctx.lineTo(sx + d + TILE_SIZE, sy + TILE_SIZE);
+                        ctx.stroke();
+                    }
+                    // Cone icon
+                    ctx.font = '14px sans-serif';
+                    ctx.fillStyle = '#fff';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('⚠️', sx + TILE_SIZE / 2, sy + TILE_SIZE / 2);
                 }
             }
         }
