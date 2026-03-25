@@ -133,8 +133,6 @@ class Game {
         this._fatigueWarned60 = false;
         this._fatigueWarned85 = false;
         this._pullOverNotified = false;
-        this._impounded = false;
-        this._debtWarned = false;
 
         // Gradual refueling state
         this._isRefueling = false;
@@ -442,40 +440,6 @@ class Game {
             this._towNotified = false;
         }
 
-        // Debt warnings and consequences
-        if (this.taxi.money < -100 && this.taxi.money >= -500 && !this._debtWarned) {
-            this._debtWarned = true;
-            this.hazardMgr.addNotification('⚠️ Warning: You are in debt! Earn fares to pay it off or your car will be impounded at -$500.', 'warning');
-        }
-        if (this.taxi.money >= -100) {
-            this._debtWarned = false;
-        }
-        // Impound car only at severe debt (-$500)
-        if (this.taxi.money < -500 && !this._impounded) {
-            this._impounded = true;
-            this.taxi.speed = 0;
-            // Drop passenger if carrying
-            if (this.taxi.hasPassenger) {
-                if (this.taxi.passenger) this.taxi.passenger.active = false;
-                this.taxi.passenger = null;
-                this.taxi.hasPassenger = false;
-                this.taxi.resetRideStats();
-                if (this.gps) this.gps.clearRoute();
-            }
-            // Teleport to home
-            const home = this.city.getBuildingsOfType(BUILDING_TYPE.HOME)[0];
-            if (home) {
-                const homePos = this.city.getRoadNearBuilding(home);
-                this.taxi.x = homePos.x;
-                this.taxi.y = homePos.y;
-                this.camera.snapTo(this.taxi.x, this.taxi.y);
-            }
-            this.hazardMgr.addNotification('🚫 CAR IMPOUNDED! Debt exceeded $500. Press E at Home to release (penalty applies).', 'danger');
-        }
-        // Prevent driving while impounded
-        if (this._impounded) {
-            this.taxi.speed = 0;
-        }
     }
 
     _checkVehicleCollision(vehicle, label) {
@@ -879,18 +843,6 @@ class Game {
                 }
             }
         } else if (building.type === BUILDING_TYPE.HOME) {
-            // Release impounded car
-            if (this._impounded) {
-                this._impounded = false;
-                this.taxi.money = 0; // Clear debt
-                this.taxi.health = Math.max(this.taxi.health, 30);
-                this.taxi.rating = Math.max(1.0, this.taxi.rating - 0.5);
-                this.taxi.fatigue = 0;
-                this.taxi.day++;
-                this.gameTime = DAY_START_HOUR * 60;
-                this.hazardMgr.addNotification('🔓 Car released. Debt cleared, rating penalty applied. New day begins.', 'warning');
-                return;
-            }
             if (this.taxi.hasPassenger) {
                 this.hazardMgr.addNotification('🚕 Drop off your passenger first!', 'warning');
                 return;
