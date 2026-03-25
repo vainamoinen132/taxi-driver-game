@@ -246,7 +246,7 @@ class Renderer {
                     }
                 }
 
-                // Intersection — no extra overlay, just the base color
+                // Intersection — clean asphalt, no markings
 
                 // Parking lot markings
                 if (tile === TILE.PARKING) {
@@ -498,54 +498,61 @@ class Renderer {
             }
         }
 
-        // --- Pass 4: Direction arrows on road tiles ---
+        // --- Pass 4: Large painted road arrows (like real road markings) ---
         // Convention: Horizontal roads = top row goes RIGHT, bottom row goes LEFT
         //             Vertical roads = left col goes DOWN, right col goes UP
-        ctx.fillStyle = 'rgba(255,255,255,0.25)';
         for (let r = startRow; r < endRow; r++) {
             for (let c = startCol; c < endCol; c++) {
                 const tile = city.tiles[r][c];
                 if (tile !== TILE.ROAD_H && tile !== TILE.ROAD_V) continue;
-                // Draw arrow every 3 tiles for readability
-                if ((r + c) % 3 !== 0) continue;
+                // Draw arrow every 4 tiles so they're not too dense
+                if ((r * 7 + c * 13) % 4 !== 0) continue;
+                // Skip tiles adjacent to intersections
+                const hasAdjacentCross = (
+                    (r > 0 && city.tiles[r-1][c] === TILE.ROAD_CROSS) ||
+                    (r < MAP_ROWS-1 && city.tiles[r+1][c] === TILE.ROAD_CROSS) ||
+                    (c > 0 && city.tiles[r][c-1] === TILE.ROAD_CROSS) ||
+                    (c < MAP_COLS-1 && city.tiles[r][c+1] === TILE.ROAD_CROSS)
+                );
+                if (hasAdjacentCross) continue;
 
                 const sx = c * T - cam.x;
                 const sy = r * T - cam.y;
-                const cx = sx + hT;
-                const cy = sy + hT;
 
                 ctx.save();
-                ctx.translate(cx, cy);
+                ctx.translate(sx + hT, sy + hT);
 
+                // Determine direction
                 if (tile === TILE.ROAD_H) {
                     const aboveIsH = (r - 1 >= 0) && city.tiles[r - 1][c] === TILE.ROAD_H;
                     if (aboveIsH) {
-                        // Bottom lane → LEFT
-                        ctx.rotate(Math.PI);
+                        ctx.rotate(Math.PI); // bottom lane → LEFT
                     }
-                    // else top lane → RIGHT (no rotation)
-                } else if (tile === TILE.ROAD_V) {
+                    // else top lane → RIGHT
+                } else {
                     const leftIsV = (c - 1 >= 0) && city.tiles[r][c - 1] === TILE.ROAD_V;
                     if (leftIsV) {
-                        // Right col → UP
-                        ctx.rotate(-Math.PI / 2);
+                        ctx.rotate(-Math.PI / 2); // right col → UP
                     } else {
-                        // Left col → DOWN
-                        ctx.rotate(Math.PI / 2);
+                        ctx.rotate(Math.PI / 2); // left col → DOWN
                     }
                 }
 
-                // Draw arrow pointing right (will be rotated by context)
-                const aw = 16; // arrow width
-                const ah = 8;  // arrow head half-height
+                // Draw large chevron arrow pointing RIGHT (rotated by ctx)
+                // Styled like real white road paint — bold, clear, large
+                ctx.fillStyle = 'rgba(255,255,255,0.55)';
+
+                // Arrow shaft (tall narrow rectangle)
+                const shaftW = 18;
+                const shaftH = 5;
+                ctx.fillRect(-shaftW / 2, -shaftH / 2, shaftW * 0.6, shaftH);
+
+                // Arrow head (triangle chevron)
                 ctx.beginPath();
-                ctx.moveTo(-aw / 2, -2);
-                ctx.lineTo(aw / 4, -2);
-                ctx.lineTo(aw / 4, -ah);
-                ctx.lineTo(aw / 2, 0);
-                ctx.lineTo(aw / 4, ah);
-                ctx.lineTo(aw / 4, 2);
-                ctx.lineTo(-aw / 2, 2);
+                ctx.moveTo(shaftW / 2, 0);             // tip
+                ctx.lineTo(shaftW / 2 - 12, -12);      // top-left of head
+                ctx.lineTo(shaftW / 2 - 6, 0);         // inner notch
+                ctx.lineTo(shaftW / 2 - 12, 12);       // bottom-left of head
                 ctx.closePath();
                 ctx.fill();
 
@@ -553,44 +560,7 @@ class Renderer {
             }
         }
 
-        // --- Pass 5: Intersection crosswalk markings (subtle zebra only at outer edges) ---
-        for (let r = startRow; r < endRow; r++) {
-            for (let c = startCol; c < endCol; c++) {
-                if (city.tiles[r][c] !== TILE.ROAD_CROSS) continue;
-                const sx = c * T - cam.x;
-                const sy = r * T - cam.y;
-
-                // Only draw crosswalk stripes where intersection meets non-road/non-cross
-                ctx.fillStyle = 'rgba(255,255,255,0.30)';
-                const aboveNonRoad = (r === 0) || (!isRoadTile(city.tiles[r - 1][c]));
-                const belowNonRoad = (r === MAP_ROWS - 1) || (!isRoadTile(city.tiles[r + 1][c]));
-                const leftNonRoad = (c === 0) || (!isRoadTile(city.tiles[r][c - 1]));
-                const rightNonRoad = (c === MAP_COLS - 1) || (!isRoadTile(city.tiles[r][c + 1]));
-
-                // Horizontal zebra stripes at top/bottom edges
-                if (aboveNonRoad) {
-                    for (let s = 4; s < T - 4; s += 10) {
-                        ctx.fillRect(sx + s, sy + 2, 6, 5);
-                    }
-                }
-                if (belowNonRoad) {
-                    for (let s = 4; s < T - 4; s += 10) {
-                        ctx.fillRect(sx + s, sy + T - 7, 6, 5);
-                    }
-                }
-                // Vertical zebra stripes at left/right edges
-                if (leftNonRoad) {
-                    for (let s = 4; s < T - 4; s += 10) {
-                        ctx.fillRect(sx + 2, sy + s, 5, 6);
-                    }
-                }
-                if (rightNonRoad) {
-                    for (let s = 4; s < T - 4; s += 10) {
-                        ctx.fillRect(sx + T - 7, sy + s, 5, 6);
-                    }
-                }
-            }
-        }
+        // Intersections are left clean — no crosswalk markings
     }
 
     _drawBuildings(ctx, cam, city, startCol, endCol, startRow, endRow) {

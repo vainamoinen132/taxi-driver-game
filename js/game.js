@@ -109,9 +109,10 @@ class Game {
         // Create GPS system
         this.gps = new GPSRouteSystem(this.city);
 
-        // Create police patrol system
-        this.police = new PolicePatrolSystem(this.city);
-        this.police.setHazardManager(this.hazardMgr);
+        // Police patrol system disabled — was blocking gameplay
+        // this.police = new PolicePatrolSystem(this.city);
+        // this.police.setHazardManager(this.hazardMgr);
+        this.police = null;
 
         // Create radio system
         this.radio = new RadioSystem();
@@ -280,27 +281,8 @@ class Game {
         // Update app orders
         this.appOrderMgr.update(dt, this.taxi);
 
-        // Update police patrols
-        this.police.update(dt, this.taxi);
-
         // Update radio system
         this.radio.update(dt);
-
-        // Check for police pull-over
-        if (this.police.isActive()) {
-            const pullOverInfo = this.police.getPullOverInfo();
-            if (pullOverInfo && !this._pullOverNotified) {
-                this._pullOverNotified = true;
-                const violationText = pullOverInfo.violation === 'speeding' ?
-                    `Speeding (${Math.floor(this.taxi.currentDisplaySpeed)} km/h)` :
-                    pullOverInfo.violation === 'red_light' ? 'Running a red light' :
-                    'Traffic violation';
-                this.hazardMgr.addNotification(`🚔 PULL OVER! ${violationText}. Fine: ${formatMoney(pullOverInfo.fine)}`, 'danger');
-                this.audio.playFine();
-            }
-        } else {
-            this._pullOverNotified = false;
-        }
 
         // Check interaction with buildings
         this.taxi.nearBuilding = this.taxi.getInteractionBuilding(this.city);

@@ -35,16 +35,34 @@ class HazardManager {
     }
 
     _placeTrafficLights() {
+        // Place traffic lights at corners of intersections (on sidewalk),
+        // just like real life — one light per intersection, positioned at
+        // the top-right corner for visibility
         for (const rRow of this.city.horizontalRoads) {
             for (const cCol of this.city.verticalRoads) {
                 if (Math.random() < TRAFFIC_LIGHT_PLACEMENT) {
-                    this.trafficLights.push({
-                        x: cCol * TILE_SIZE + TILE_SIZE / 2,
-                        y: rRow * TILE_SIZE + TILE_SIZE / 2,
-                        timer: Math.random() * TRAFFIC_LIGHT_CYCLE,
-                        cooldown: 0,
-                        radius: TILE_SIZE * 1.2,
-                    });
+                    // Intersection occupies 2x2 tiles: (rRow, cCol) to (rRow+1, cCol+1)
+                    // Place lights at all 4 corners just outside the intersection
+                    const corners = [
+                        { x: cCol * TILE_SIZE - 4,              y: rRow * TILE_SIZE - 4 },              // top-left
+                        { x: (cCol + 2) * TILE_SIZE + 4,       y: rRow * TILE_SIZE - 4 },              // top-right
+                        { x: cCol * TILE_SIZE - 4,              y: (rRow + 2) * TILE_SIZE + 4 },       // bottom-left
+                        { x: (cCol + 2) * TILE_SIZE + 4,       y: (rRow + 2) * TILE_SIZE + 4 },       // bottom-right
+                    ];
+                    // Use same timer so all 4 lights at this intersection are synced
+                    const timer = Math.random() * TRAFFIC_LIGHT_CYCLE;
+                    for (let ci = 0; ci < corners.length; ci++) {
+                        this.trafficLights.push({
+                            x: corners[ci].x,
+                            y: corners[ci].y,
+                            timer: timer,
+                            cooldown: 0,
+                            radius: TILE_SIZE * 1.8,
+                            intersectionX: (cCol + 1) * TILE_SIZE,
+                            intersectionY: (rRow + 1) * TILE_SIZE,
+                            enforces: ci === 0, // only first corner handles fines
+                        });
+                    }
                 }
             }
         }
@@ -76,11 +94,13 @@ class HazardManager {
             light.timer += dt;
             if (light.cooldown > 0) light.cooldown -= dt;
 
-            // Check red light running
-            if (light.cooldown <= 0) {
+            // Check red light running (use intersection center for detection)
+            if (light.cooldown <= 0 && light.enforces !== false) {
                 const state = this.getTrafficLightState(light);
                 if (state === 'red') {
-                    const d = dist(taxi.x, taxi.y, light.x, light.y);
+                    const checkX = light.intersectionX || light.x;
+                    const checkY = light.intersectionY || light.y;
+                    const d = dist(taxi.x, taxi.y, checkX, checkY);
                     if (d < light.radius && Math.abs(taxi.speed) > 20) {
                         taxi.money -= RED_LIGHT_FINE;
                         taxi.totalFines++;
