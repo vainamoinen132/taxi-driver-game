@@ -134,6 +134,7 @@ class Game {
         this._fatigueWarned85 = false;
         this._pullOverNotified = false;
         this._impounded = false;
+        this._debtWarned = false;
 
         // Gradual refueling state
         this._isRefueling = false;
@@ -441,8 +442,16 @@ class Game {
             this._towNotified = false;
         }
 
-        // Debt consequences — impound car if deep in debt
-        if (this.taxi.money < -200 && !this._impounded) {
+        // Debt warnings and consequences
+        if (this.taxi.money < -100 && this.taxi.money >= -500 && !this._debtWarned) {
+            this._debtWarned = true;
+            this.hazardMgr.addNotification('⚠️ Warning: You are in debt! Earn fares to pay it off or your car will be impounded at -$500.', 'warning');
+        }
+        if (this.taxi.money >= -100) {
+            this._debtWarned = false;
+        }
+        // Impound car only at severe debt (-$500)
+        if (this.taxi.money < -500 && !this._impounded) {
             this._impounded = true;
             this.taxi.speed = 0;
             // Drop passenger if carrying
@@ -461,7 +470,7 @@ class Game {
                 this.taxi.y = homePos.y;
                 this.camera.snapTo(this.taxi.x, this.taxi.y);
             }
-            this.hazardMgr.addNotification('🚫 CAR IMPOUNDED! Debt exceeded $200. Press E at Home to release (penalty applies).', 'danger');
+            this.hazardMgr.addNotification('🚫 CAR IMPOUNDED! Debt exceeded $500. Press E at Home to release (penalty applies).', 'danger');
         }
         // Prevent driving while impounded
         if (this._impounded) {
@@ -1457,20 +1466,20 @@ class Game {
         const t = this.taxi;
         const s = saveData.taxi;
         
-        t.money = s.money || 500;
-        t.fuel = s.fuel || t.fuelCapacity;
-        t.health = s.health || t.maxHealth;
-        t.totalKm = s.totalKm || 0;
-        t.totalFares = s.totalFares || 0;
-        t.totalEarnings = s.totalEarnings || 0;
-        t.day = s.day || 1;
-        t.totalDamageEvents = s.totalDamageEvents || 0;
-        t.totalFines = s.totalFines || 0;
-        t.rating = s.rating || RATING_INITIAL;
+        t.money = s.money !== undefined ? s.money : 500;
+        t.fuel = s.fuel !== undefined ? s.fuel : t.fuelCapacity;
+        t.health = s.health !== undefined ? s.health : t.maxHealth;
+        t.totalKm = s.totalKm !== undefined ? s.totalKm : 0;
+        t.totalFares = s.totalFares !== undefined ? s.totalFares : 0;
+        t.totalEarnings = s.totalEarnings !== undefined ? s.totalEarnings : 0;
+        t.day = s.day !== undefined ? s.day : 1;
+        t.totalDamageEvents = s.totalDamageEvents !== undefined ? s.totalDamageEvents : 0;
+        t.totalFines = s.totalFines !== undefined ? s.totalFines : 0;
+        t.rating = s.rating !== undefined ? s.rating : RATING_INITIAL;
         t.ratingHistory = s.ratingHistory || [];
-        t.tireHealth = s.tireHealth || TIRE_MAX_HEALTH;
-        t.fatigue = s.fatigue || 0;
-        t.damageVisual = s.damageVisual || 0;
+        t.tireHealth = s.tireHealth !== undefined ? s.tireHealth : TIRE_MAX_HEALTH;
+        t.fatigue = s.fatigue !== undefined ? s.fatigue : 0;
+        t.damageVisual = s.damageVisual !== undefined ? s.damageVisual : 0;
         
         if (s.carModelId) {
             t.carModelId = s.carModelId;
