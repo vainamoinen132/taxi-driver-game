@@ -49,11 +49,13 @@
                 </div>
                 <div class="info-section">
                     <h3>🏆 Tips</h3>
-                    <p>• Press <b>2</b> when fuel is low — follow the green arrow to the nearest gas station</p>
+                    <p>• Press <b>G</b> when fuel is low — navigate to the nearest gas station</p>
                     <p>• Higher star rating = bigger tips from passengers</p>
                     <p>• Check the phone app (<b>F</b>) for bonus ride orders</p>
                     <p>• Watch for city events — surge pricing means big money!</p>
                     <p>• Upgrade your taxi from the pause menu (ESC) for better performance</p>
+                    <p>• Buy new cars at home 🏡 — each has unique stats and advantages!</p>
+                    <p>• Watch for speed limits (120 km/h city, 80 km/h near schools) and red lights 🚦</p>
                 </div>
             </div>
             <button id="btn-back-menu" class="menu-btn">Back to Menu</button>
@@ -66,7 +68,7 @@
 
         <!-- HUD -->
         <div id="hud">
-            <div id="nav-hint"><b>G</b> Navigate to... &nbsp; <b>C</b> Center camera &nbsp; <b>F</b> Phone orders &nbsp; <b>M</b> Minimap</div>
+            <div id="nav-hint"><b>G</b> Navigate &nbsp; <b>R</b> GPS &nbsp; <b>X</b> Radio &nbsp; <b>M/,</b> Stations &nbsp; <b>C</b> Center &nbsp; <b>F</b> Phone &nbsp; <b>M</b> Minimap</div>
             <div id="hud-top-left">
                 <div class="hud-item" id="hud-money">💰 $<span>500</span></div>
                 <div class="hud-item" id="hud-fuel">
@@ -93,6 +95,10 @@
                     <span id="passenger-status">Looking for passengers...</span>
                 </div>
                 <div id="hud-notification" class="hidden"></div>
+                <div id="radio-display" class="hidden">
+                    <div id="radio-station">Radio Off</div>
+                    <div id="radio-content">Press X to toggle radio</div>
+                </div>
             </div>
         </div>
 
@@ -168,6 +174,10 @@
     <script src="js/app-orders.js"></script>
     <script src="js/hazards.js"></script>
     <script src="js/weather.js"></script>
+    <script src="js/challenges.js"></script>
+    <script src="js/gps.js"></script>
+    <script src="js/police.js"></script>
+    <script src="js/radio.js"></script>
     <script src="js/hud.js"></script>
     <script src="js/renderer.js"></script>
     <script src="js/game.js"></script>

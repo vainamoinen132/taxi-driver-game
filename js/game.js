@@ -22,6 +22,7 @@ class Game {
         this.passengerMgr = null;
         this.eventMgr = null;
         this.hazardMgr = null;
+        this.challengeMgr = null;
         this.renderer = null;
         this.hud = null;
 
@@ -69,9 +70,22 @@ class Game {
 
         // Create hazard manager
         this.hazardMgr = new HazardManager(this.city);
+        this.hazardMgr.setChallengeManager(this.challengeMgr);
 
         // Create app order manager
         this.appOrderMgr = new AppOrderManager(this.city);
+
+        // Create challenge manager
+        this.challengeMgr = new ChallengeManager();
+
+        // Create GPS system
+        this.gps = new GPSRouteSystem(this.city);
+
+        // Create police patrol system
+        this.police = new PolicePatrolSystem(this.city);
+
+        // Create radio system
+        this.radio = new RadioSystem();
 
         // Weather system
         this.weather = new WeatherSystem();
@@ -89,6 +103,7 @@ class Game {
         this._fuelWarned = false;
         this._fatigueWarned60 = false;
         this._fatigueWarned85 = false;
+        this._pullOverNotified = false;
 
         // Gradual refueling state
         this._isRefueling = false;
@@ -163,7 +178,16 @@ class Game {
         this.taxi.keys.d = !!this.keysDown['d'] || !!this.keysDown['D'] || !!this.keysDown['ArrowRight'];
 
         // Update taxi
+        const prevKm = this.taxi.totalKm;
         this.taxi.update(dt, this.city);
+        const kmDriven = this.taxi.totalKm - prevKm;
+
+        // Update challenges - distance driven
+        if (this.challengeMgr && kmDriven > 0) {
+            // Convert km to blocks (roughly 1 block = 0.05 km)
+            const blocksDriven = kmDriven / 0.05;
+            this.challengeMgr.updateProgress('drive_blocks', blocksDriven, this);
+        }
 
         // Handle resting at home
         if (this.taxi.isResting) {
@@ -173,7 +197,7 @@ class Game {
                 this.taxi.isResting = false;
                 this.hazardMgr.addNotification('😊 Fully rested! Ready to hit the road!', 'info');
             }
-            this.hud.update(this.taxi, this.gameTime, this.hazardMgr, this.eventMgr, this.appOrderMgr, this.weather);
+            this.hud.update(this.taxi, this.gameTime, this.hazardMgr, this.eventMgr, this.appOrderMgr, this.weather, this.radio);
             this.camera.follow(this.taxi.x, this.taxi.y);
             return; // skip everything else while resting
         }
@@ -184,7 +208,7 @@ class Game {
         }
 
         // Update NPC traffic
-        this.trafficMgr.update(dt, this.taxi);
+        this.trafficMgr.update(dt, this.taxi, this.hazardMgr);
 
         // Check AI-player collision
         for (const ai of this.aiTaxis) {
@@ -216,6 +240,27 @@ class Game {
         // Update app orders
         this.appOrderMgr.update(dt, this.taxi);
 
+        // Update police patrols
+        this.police.update(dt, this.taxi);
+
+        // Update radio system
+        this.radio.update(dt);
+
+        // Check for police pull-over
+        if (this.police.isActive()) {
+            const pullOverInfo = this.police.getPullOverInfo();
+            if (pullOverInfo && !this._pullOverNotified) {
+                this._pullOverNotified = true;
+                const violationText = pullOverInfo.violation === 'speeding' ? 
+                    `Speeding (${Math.floor(this.taxi.currentDisplaySpeed)} km/h)` : 
+                    'Traffic violation';
+                this.hazardMgr.addNotification(`🚔 PULL OVER! ${violationText}. Fine: ${formatMoney(pullOverInfo.fine)}`, 'danger');
+                this.audio.playFine();
+            }
+        } else {
+            this._pullOverNotified = false;
+        }
+
         // Check interaction with buildings
         this.taxi.nearBuilding = this.taxi.getInteractionBuilding(this.city);
 
@@ -228,7 +273,13 @@ class Game {
                 this.taxi.hasPassenger = true;
                 this.taxi.rideDamageTaken = 0;
                 this.taxi.rideStartTime = this.gameTime;
+                this.taxi.rideWaitTime = (Date.now() / 1000) - (p.spawnTime || 0);
                 this.audio.playPickup();
+                
+                // Calculate GPS route to destination
+                if (this.gps) {
+                    this.gps.calculateRoute(this.taxi.x, this.taxi.y, p.destX, p.destY);
+                }
                 this.hazardMgr.addNotification(`🧳 Luggage loaded! Head to ${p.getDestinationName()}`, 'info');
             }
             this._pendingPickup = null;
@@ -325,7 +376,7 @@ class Game {
         this.camera.follow(this.taxi.x, this.taxi.y);
 
         // Update HUD
-        this.hud.update(this.taxi, this.gameTime, this.hazardMgr, this.eventMgr, this.appOrderMgr, this.weather);
+        this.hud.update(this.taxi, this.gameTime, this.hazardMgr, this.eventMgr, this.appOrderMgr, this.weather, this.radio);
 
         // Update phone UI if open
         if (this.showingPhone) {
@@ -400,7 +451,9 @@ class Game {
             this.appOrderMgr,
             this.gameTime,
             dt,
-            this.weather
+            this.weather,
+            this.gps,
+            this.police
         );
     }
 
@@ -446,9 +499,45 @@ class Game {
                 this.audio.toggle();
             }
 
+            // Radio controls
+            if (e.key === 'm' || e.key === 'M') {
+                if (this.radio) {
+                    const stationInfo = this.radio.changeStation(1);
+                    this.hazardMgr.addNotification(`📻 ${stationInfo.name} - ${stationInfo.genre}`, 'info');
+                }
+            }
+            
+            if (e.key === ',' || e.key === '<') {
+                if (this.radio) {
+                    const stationInfo = this.radio.changeStation(-1);
+                    this.hazardMgr.addNotification(`📻 ${stationInfo.name} - ${stationInfo.genre}`, 'info');
+                }
+            }
+            
+            if (e.key === 'x' || e.key === 'X') {
+                if (this.radio) {
+                    const enabled = this.radio.toggle();
+                    this.hazardMgr.addNotification(`📻 Radio ${enabled ? 'ON' : 'OFF'}`, 'info');
+                }
+            }
+
             // Center camera on taxi
             if (e.key === 'c' || e.key === 'C') {
                 this.camera.snapTo(this.taxi.x, this.taxi.y);
+            }
+
+            // Toggle GPS route
+            if (e.key === 'r' || e.key === 'R') {
+                if (this.gps) {
+                    const enabled = this.gps.toggle();
+                    this.hazardMgr.addNotification(`🗺️ GPS route ${enabled ? 'enabled' : 'disabled'}`, 'info');
+                    
+                    // Recalculate route if enabling and has passenger
+                    if (enabled && this.taxi.hasPassenger && this.taxi.passenger) {
+                        const p = this.taxi.passenger;
+                        this.gps.calculateRoute(this.taxi.x, this.taxi.y, p.destX, p.destY);
+                    }
+                }
             }
 
             // Phone / App orders
@@ -496,6 +585,12 @@ class Game {
                 this.taxi.navTarget = { x: appOrder.destX, y: appOrder.destY, label: '📱 Drop-off' };
                 this.audio.playPickup();
                 this.hazardMgr.addNotification(`📱 Picked up ${appOrder.customerName}! Head to destination.`, 'info');
+                
+                // Calculate GPS route to destination
+                if (this.gps) {
+                    this.gps.calculateRoute(this.taxi.x, this.taxi.y, appOrder.destX, appOrder.destY);
+                }
+                
                 this._updatePhoneUI();
                 return;
             }
@@ -524,6 +619,7 @@ class Game {
                 this.taxi.hasPassenger = true;
                 this.taxi.rideDamageTaken = 0;
                 this.taxi.rideStartTime = this.gameTime;
+                this.taxi.rideWaitTime = (Date.now() / 1000) - (p.spawnTime || 0);
                 this._pendingPickup = null;
                 this.audio.playPickup();
                 let msg = p.isVIP ? `🤵 VIP ${p.name}` : `🧑 Picked up ${p.name}`;
@@ -562,7 +658,8 @@ class Game {
             this.audio.playDamage();
         } else {
             const fareMultiplier = this.weather.getFareMultiplier(this.gameTime);
-            const result = passenger.calculateFare(this.taxi.fareBonus, fareMultiplier, this.taxi.rideDamageTaken);
+            const rideStats = this.taxi.getRideStats();
+            const result = passenger.calculateFare(this.taxi.fareBonus, fareMultiplier, this.taxi.rideDamageTaken, rideStats.rideTime, rideStats.waitTime, rideStats.avgSpeed);
             // Negotiation skill boosts tips by 10% per level
             const negLvl = (this.taxi.skills && this.taxi.skills.negotiation) || 0;
             if (negLvl > 0) result.tip = Math.round(result.tip * (1 + negLvl * 0.10));
@@ -578,11 +675,24 @@ class Game {
                 msg += ` | ${starStr}`;
                 if (fareMultiplier > 1) msg += ` (${fareMultiplier}x surge)`;
                 this.hazardMgr.addNotification(msg, 'info');
+                
+                // Show passenger feedback
+                if (result.feedback) {
+                    setTimeout(() => {
+                        this.hazardMgr.addNotification(`💬 "${result.feedback}" - ${passenger.name}`, result.stars >= 4 ? 'success' : 'warning');
+                    }, 1000);
+                }
+                
                 this.audio.playDropoff();
             }
 
             this.taxi.money += total;
             this.taxi.totalEarnings += total;
+
+            // Update challenges - earnings
+            if (this.challengeMgr) {
+                this.challengeMgr.updateProgress('earn_before_time', total, this);
+            }
 
             // Update rating
             if (result.stars) {
@@ -594,6 +704,36 @@ class Game {
         passenger.active = false;
         this.taxi.passenger = null;
         this.taxi.hasPassenger = false;
+
+        // Clear GPS route when passenger is dropped off
+        if (this.gps) {
+            this.gps.clearRoute();
+        }
+
+        // Reset ride statistics
+        this.taxi.resetRideStats();
+
+        // Update challenges
+        if (this.challengeMgr) {
+            // Fares completed challenge
+            this.challengeMgr.updateProgress('fares_no_damage', 1, this);
+            
+            // VIP passengers challenge
+            if (passenger.isVIP) {
+                this.challengeMgr.updateProgress('vip_passengers', 1, this);
+            }
+            
+            // Perfect rating challenge
+            if (result.stars && result.stars >= 5) {
+                this.challengeMgr.updateProgress('perfect_rating', 1, this);
+            }
+            
+            // Night driver challenge
+            const hour = (this.gameTime / 60) % 24;
+            if (hour >= 22 || hour < 5) {
+                this.challengeMgr.updateProgress('night_driver', 1, this);
+            }
+        }
     }
 
     _handleInteraction() {
@@ -939,6 +1079,46 @@ class Game {
             </div>`;
         }
 
+        // Car dealership
+        let garageHtml = '';
+        for (const car of CAR_MODELS) {
+            const owned = this.taxi.ownedCars.includes(car.id);
+            const active = this.taxi.carModelId === car.id;
+            const canAfford = this.taxi.money >= car.price;
+            const statBars = [
+                { label: 'Speed', val: car.stats.maxSpeed, max: 320 },
+                { label: 'Accel', val: car.stats.acceleration, max: 150 },
+                { label: 'Fuel', val: car.stats.fuelCapacity, max: 160 },
+                { label: 'Tough', val: car.stats.durability, max: 200 },
+                { label: 'Fare+', val: car.stats.fareBonus * 100, max: 170 },
+            ];
+            const barsHtml = statBars.map(s =>
+                `<div class="car-stat-row"><span>${s.label}</span><div class="car-stat-bar"><div class="car-stat-fill" style="width:${Math.round(s.val/s.max*100)}%;background:${active ? '#00FF88' : '#4a9e9e'}"></div></div></div>`
+            ).join('');
+
+            let btnHtml;
+            if (active) {
+                btnHtml = `<button class="menu-btn" disabled style="opacity:0.5">✅ Current</button>`;
+            } else if (owned) {
+                btnHtml = `<button class="menu-btn car-switch-btn" data-carid="${car.id}">🔄 Switch</button>`;
+            } else {
+                btnHtml = `<button class="menu-btn car-buy-btn" data-carid="${car.id}" ${canAfford ? '' : 'disabled'}>
+                    ${canAfford ? `🛒 Buy — ${formatMoney(car.price)}` : `Need ${formatMoney(car.price)}`}
+                </button>`;
+            }
+
+            garageHtml += `<div class="car-card ${active ? 'car-card-active' : ''}">
+                <div class="car-card-header">
+                    <span class="car-swatch" style="background:${car.color}"></span>
+                    <b>${car.name}</b>
+                    ${car.price === 0 ? '' : `<span style="color:#f5c518;font-size:0.8rem">${formatMoney(car.price)}</span>`}
+                </div>
+                <div style="color:#aaa;font-size:0.78rem;margin:4px 0">${car.desc}</div>
+                ${barsHtml}
+                ${btnHtml}
+            </div>`;
+        }
+
         overlay.innerHTML = `
             <div class="overlay-content wide home-content">
                 <h2>🏡 Home — End of Day ${this.taxi.day}</h2>
@@ -955,6 +1135,15 @@ class Game {
                         <h3>📚 Skills & Training</h3>
                         ${skillsHtml}
                     </div>
+                </div>
+                <div class="home-section" style="margin-top:16px">
+                    <h3>🎯 Daily Challenges</h3>
+                    ${this._renderChallenges()}
+                </div>
+                <div class="home-section" style="margin-top:16px">
+                    <h3>🚗 Garage — Buy & Switch Cars</h3>
+                    <div style="color:#aaa;font-size:0.82rem;margin-bottom:8px">Current: <b style="color:${this.taxi.carColor}">${this.taxi.carModel.name}</b></div>
+                    <div class="car-grid">${garageHtml}</div>
                 </div>
                 <div style="margin-top:16px; display:flex; gap:12px; justify-content:center;">
                     <button class="menu-btn" id="home-rest-btn">😴 Rest & Sleep (restore energy)</button>
@@ -973,8 +1162,32 @@ class Game {
                 if (lvl < def.max && this.taxi.money >= def.cost[lvl]) {
                     this.taxi.money -= def.cost[lvl];
                     sk[key] = lvl + 1;
-                    this._showHomeScreen(); // refresh
+                    this._showHomeScreen();
                 }
+            });
+        });
+
+        // Bind car buy buttons
+        overlay.querySelectorAll('.car-buy-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const carId = btn.dataset.carid;
+                const model = CAR_MODELS.find(m => m.id === carId);
+                if (model && this.taxi.money >= model.price) {
+                    this.taxi.money -= model.price;
+                    this.taxi.ownedCars.push(carId);
+                    this.taxi.switchCar(carId);
+                    this.hazardMgr.addNotification(`🚗 Bought ${model.name}!`, 'info');
+                    this._showHomeScreen();
+                }
+            });
+        });
+
+        // Bind car switch buttons
+        overlay.querySelectorAll('.car-switch-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const carId = btn.dataset.carid;
+                this.taxi.switchCar(carId);
+                this._showHomeScreen();
             });
         });
 
@@ -983,7 +1196,7 @@ class Game {
             this.taxi.fatigue = 0;
             this.taxi.isResting = false;
             this.hazardMgr.addNotification('😴 You slept well! Energy fully restored.', 'info');
-            this._showHomeScreen(); // refresh to show updated state
+            this._showHomeScreen();
         });
 
         // Next day button
@@ -993,11 +1206,62 @@ class Game {
             this.taxi.day++;
             this._dayStartEarnings = this.taxi.totalEarnings;
             this._dayStartFares = this.taxi.totalFares;
-            this.gameTime = DAY_START_HOUR * 60; // reset to morning
+            this.gameTime = DAY_START_HOUR * 60;
             overlay.classList.add('hidden');
             this.paused = false;
             this.hazardMgr.addNotification(`☀️ Day ${this.taxi.day} begins! Good luck!`, 'info');
         });
+    }
+
+    _renderChallenges() {
+        if (!this.challengeMgr) return '<div style="color:#aaa">Challenges loading...</div>';
+        
+        let html = '';
+        for (const challenge of this.challengeMgr.currentChallenges) {
+            const progress = Math.min(challenge.progress, challenge.target);
+            const percent = Math.round((progress / challenge.target) * 100);
+            const completed = challenge.completed;
+            const color = completed ? '#2ecc71' : '#3498db';
+            
+            html += `
+                <div class="challenge-item ${completed ? 'challenge-completed' : ''}">
+                    <div class="challenge-header">
+                        <span class="challenge-icon">${challenge.icon}</span>
+                        <span class="challenge-desc">${challenge.desc}</span>
+                        ${completed ? '<span class="challenge-status">✅</span>' : ''}
+                    </div>
+                    <div class="challenge-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width:${percent}%;background:${color}"></div>
+                        </div>
+                        <span class="progress-text">${Math.floor(progress)}/${challenge.target}</span>
+                    </div>
+                    ${completed && challenge.reward ? `
+                        <div class="challenge-reward">
+                            <span class="reward-icon">${CHALLENGE_REWARDS[challenge.reward.type]?.icon || '🎁'}</span>
+                            <span class="reward-text">${this._formatRewardText(challenge.reward)}</span>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+        
+        if (html === '') {
+            html = '<div style="color:#aaa">No challenges today</div>';
+        }
+        
+        return html;
+    }
+
+    _formatRewardText(reward) {
+        switch (reward.type) {
+            case 'money': return `+${formatMoney(reward.amount)}`;
+            case 'free_repair': return 'Free repair';
+            case 'free_fuel': return 'Free fuel';
+            case 'tip_boost': return '50% tip boost (30 min)';
+            case 'xp_bonus': return '25% XP boost (1 hour)';
+            default: return 'Reward';
+        }
     }
 
     quit() {

@@ -91,6 +91,35 @@ const BUILDING_ROOF_COLORS = {
     home_base: '#d0c040',
 };
 
+// District names (easily extensible for new cities)
+const DISTRICTS = [
+    { id: 'downtown', name: 'Downtown', color: '#3498db' },
+    { id: 'old_town', name: 'Old Town', color: '#e67e22' },
+    { id: 'harbor', name: 'Harbor District', color: '#2c3e50' },
+    { id: 'industrial', name: 'Industrial Zone', color: '#7f8c8d' },
+    { id: 'university', name: 'University Area', color: '#9b59b6' },
+    { id: 'financial', name: 'Financial District', color: '#27ae60' },
+];
+
+// Building name pools for procedural generation (scalable)
+const BUILDING_NAMES = {
+    hospital: ['City General Hospital', 'Mercy Medical Center', 'St. Mary Hospital', 'Central Care Hospital'],
+    school: ['Lincoln Elementary', 'Washington High School', 'Roosevelt Academy', 'Jefferson School'],
+    restaurant: ['Golden Dragon', 'Pizza Palace', 'Burger Joint', 'Sushi Express', 'The Steakhouse'],
+    stadium: ['City Stadium', 'Sports Arena', 'Ballpark', 'Athletic Field'],
+    concert_hall: ['Grand Theater', 'Opera House', 'Music Hall', 'Concert Center'],
+    mall: ['Central Mall', 'Shopping Plaza', 'Market Square', 'Retail Center'],
+    office: ['Tower Plaza', 'Business Center', 'Corporate Tower', 'Office Complex'],
+    factory: ['Industrial Plant', 'Manufacturing Co', 'Factory Complex', 'Production Facility'],
+    gas_station: ['Shell Station', 'BP Gas', 'Exxon Station', 'Quick Fuel', 'Gas-N-Go'],
+    mechanic: ['Auto Repair', 'Car Care Center', 'Quick Fix', 'Garage Plus', 'Auto Service'],
+    police: ['Police Station', 'Precinct HQ', 'Law Enforcement Center'],
+    hotel: ['Grand Hotel', 'City Inn', 'Comfort Stay', 'Plaza Hotel'],
+    church: ['Community Church', 'St. Cathedral', 'First Church', 'Trinity Chapel'],
+    bank: ['First Bank', 'City Bank', 'National Bank', 'Trust Bank'],
+    gym: ['Fit Gym', 'Power House', 'Workout Center', 'Fitness Plus'],
+};
+
 // Building labels (icons)
 const BUILDING_ICONS = {
     house: '🏠',
@@ -113,6 +142,64 @@ const BUILDING_ICONS = {
     gym: '💪',
     home_base: '🏡',
 };
+
+// Car models available for purchase
+const CAR_MODELS = [
+    {
+        id: 'starter_cab',
+        name: 'City Cab',
+        price: 0,
+        color: '#f5c518',
+        desc: 'Your trusty starter taxi. Reliable but nothing special.',
+        stats: { maxSpeed: 180, acceleration: 80, fuelCapacity: 100, grip: 1.0, brakes: 1.0, durability: 100, fareBonus: 1.0, fuelEfficiency: 1.0 },
+        width: 40, height: 22,
+    },
+    {
+        id: 'compact',
+        name: 'EcoRun Compact',
+        price: 800,
+        color: '#27ae60',
+        desc: 'Fuel-efficient compact. Great mileage, low maintenance.',
+        stats: { maxSpeed: 160, acceleration: 70, fuelCapacity: 80, grip: 1.1, brakes: 1.0, durability: 90, fareBonus: 1.0, fuelEfficiency: 0.6 },
+        width: 36, height: 20,
+    },
+    {
+        id: 'sedan',
+        name: 'ComfortLine Sedan',
+        price: 2000,
+        color: '#2980b9',
+        desc: 'Spacious sedan. Passengers love the comfort — higher fares.',
+        stats: { maxSpeed: 200, acceleration: 90, fuelCapacity: 120, grip: 1.1, brakes: 1.2, durability: 120, fareBonus: 1.25, fuelEfficiency: 0.9 },
+        width: 44, height: 24,
+    },
+    {
+        id: 'suv',
+        name: 'RoadKing SUV',
+        price: 4500,
+        color: '#8e44ad',
+        desc: 'Tough SUV. High durability and grip, handles any weather.',
+        stats: { maxSpeed: 190, acceleration: 85, fuelCapacity: 160, grip: 1.5, brakes: 1.3, durability: 180, fareBonus: 1.15, fuelEfficiency: 1.3 },
+        width: 46, height: 26,
+    },
+    {
+        id: 'sports',
+        name: 'Veloce GT',
+        price: 8000,
+        color: '#e74c3c',
+        desc: 'Fast sports car. Blazing speed, great brakes, but fragile.',
+        stats: { maxSpeed: 300, acceleration: 140, fuelCapacity: 90, grip: 1.4, brakes: 1.8, durability: 80, fareBonus: 1.1, fuelEfficiency: 1.4 },
+        width: 42, height: 20,
+    },
+    {
+        id: 'luxury',
+        name: 'Prestige Limo',
+        price: 15000,
+        color: '#1a1a2e',
+        desc: 'Ultimate luxury. VIPs flock to you. Huge fare bonus.',
+        stats: { maxSpeed: 240, acceleration: 100, fuelCapacity: 140, grip: 1.3, brakes: 1.5, durability: 150, fareBonus: 1.6, fuelEfficiency: 1.1 },
+        width: 50, height: 24,
+    },
+];
 
 // Car upgrade definitions
 const UPGRADES = {
@@ -185,8 +272,8 @@ const FUEL_COST_PER_LITER = 1.5;
 const BASE_FARE_PER_TILE = 2.5;
 const TIP_CHANCE = 0.45;
 const TIP_RANGE = [2, 15];
-const SPEED_FINE_AMOUNT = 25;
-const SPEED_LIMIT = 260; // km/h display speed — generous
+const SPEED_FINE_AMOUNT = 30;
+const SPEED_LIMIT = 120; // city speed limit (km/h display speed)
 const THIEF_STEAL_RANGE = [10, 40];
 const ACCIDENT_DAMAGE_RANGE = [5, 15];
 
@@ -254,6 +341,35 @@ const PEDESTRIAN_HIT_FINE = 75;
 const MAX_BUSES = 2;
 const BUS_SPEED = 35;
 const BUS_STOP_TIME = 4; // seconds at each stop
+
+// Traffic lights
+const RED_LIGHT_FINE = 50;
+const TRAFFIC_LIGHT_CYCLE = 12; // seconds per full cycle (green -> yellow -> red)
+const TRAFFIC_LIGHT_PLACEMENT = 0.35; // % of intersections that get traffic lights
+
+// Speed limits (displayed on roads, camera enforced)
+const SPEED_LIMIT_CITY = 120; // km/h display speed in city
+const SPEED_LIMIT_SLOW = 80; // km/h in school/hospital zones
+
+// Daily challenges
+const CHALLENGE_TYPES = {
+    FARES_NO_DAMAGE: { id: 'fares_no_damage', desc: 'Complete {count} fares without taking damage', icon: '🛡️' },
+    EARN_BEFORE_TIME: { id: 'earn_before_time', desc: 'Earn ${amount} before {time} PM', icon: '💰' },
+    DRIVE_BLOCKS: { id: 'drive_blocks', desc: 'Drive {count} city blocks', icon: '📏' },
+    VIP_PASSENGERS: { id: 'vip_passengers', desc: 'Pick up {count} VIP passengers', icon: '⭐' },
+    PERFECT_RATING: { id: 'perfect_rating', desc: 'Get {count} 5-star ratings', icon: '🌟' },
+    SPEED_LIMITS: { id: 'speed_limits', desc: 'Drive 5km without speeding', icon: '🚦' },
+    NO_PASSENGER_WAIT: { id: 'no_passenger_wait', desc: 'Pick up passengers within 10 seconds', icon: '⏱️' },
+    NIGHT_DRIVER: { id: 'night_driver', desc: 'Complete 3 fares after 10 PM', icon: '🌙' },
+};
+
+const CHALLENGE_REWARDS = {
+    MONEY: { type: 'money', icon: '💵' },
+    FREE_REPAIR: { type: 'free_repair', icon: '🔧' },
+    FREE_FUEL: { type: 'free_fuel', icon: '⛽' },
+    TIP_BOOST: { type: 'tip_boost', icon: '💰', duration: 1800 }, // 30 minutes
+    XP_BONUS: { type: 'xp_bonus', icon: '⭐', duration: 3600 }, // 1 hour
+};
 
 // Highway
 const HIGHWAY_SPEED_LIMIT = 350; // no speed cameras on highway

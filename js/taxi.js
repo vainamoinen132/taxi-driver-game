@@ -8,13 +8,16 @@ class Taxi {
         this.y = y;
         this.angle = 0; // radians
         this.speed = 0; // pixels per second
-        this.width = 40;
-        this.height = 22;
+
+        // Car model system
+        this.carModelId = 'starter_cab';
+        this.ownedCars = ['starter_cab'];
+        this._applyCarModel();
 
         // Stats
         this.money = 500;
-        this.fuel = 100;
-        this.health = 100;
+        this.fuel = this.fuelCapacity;
+        this.health = this.maxHealth;
         this.totalKm = 0;
         this.totalFares = 0;
         this.totalEarnings = 0;
@@ -66,6 +69,10 @@ class Taxi {
         this.ratingHistory = []; // last N fare ratings
         this.rideDamageTaken = 0; // damage during current ride
         this.rideStartTime = 0;
+        this.rideWaitTime = 0; // time passenger waited for pickup
+        this.rideDistance = 0; // distance traveled during ride
+        this.rideSpeedSum = 0; // sum of speeds for average calculation
+        this.rideSpeedSamples = 0; // number of speed samples
 
         // Visual damage state (0=clean, 1=scratched, 2=dented, 3=wrecked)
         this.damageVisual = 0;
@@ -85,26 +92,64 @@ class Taxi {
         };
     }
 
+    _applyCarModel() {
+        const model = CAR_MODELS.find(m => m.id === this.carModelId) || CAR_MODELS[0];
+        this._carStats = model.stats;
+        this.width = model.width;
+        this.height = model.height;
+        this.carColor = model.color;
+    }
+
+    switchCar(modelId) {
+        this.carModelId = modelId;
+        this._applyCarModel();
+        this.health = this.maxHealth;
+        this.fuel = this.fuelCapacity;
+        this.tireHealth = TIRE_MAX_HEALTH;
+        this.tireBlown = false;
+    }
+
+    get carModel() {
+        return CAR_MODELS.find(m => m.id === this.carModelId) || CAR_MODELS[0];
+    }
+
     get maxSpeed() {
-        return UPGRADES.engine.levels[this.upgradeLevels.engine].maxSpeed;
+        const base = this._carStats ? this._carStats.maxSpeed : 180;
+        const upgBonus = UPGRADES.engine.levels[this.upgradeLevels.engine].maxSpeed - 180;
+        return base + upgBonus;
     }
     get acceleration() {
-        return UPGRADES.engine.levels[this.upgradeLevels.engine].acceleration;
+        const base = this._carStats ? this._carStats.acceleration : 80;
+        const upgBonus = UPGRADES.engine.levels[this.upgradeLevels.engine].acceleration - 80;
+        return base + upgBonus;
     }
     get fuelCapacity() {
-        return UPGRADES.fuel_tank.levels[this.upgradeLevels.fuel_tank].capacity;
+        const base = this._carStats ? this._carStats.fuelCapacity : 100;
+        const upgBonus = UPGRADES.fuel_tank.levels[this.upgradeLevels.fuel_tank].capacity - 100;
+        return base + upgBonus;
     }
     get grip() {
-        return UPGRADES.tires.levels[this.upgradeLevels.tires].grip;
+        const base = this._carStats ? this._carStats.grip : 1.0;
+        const upgBonus = UPGRADES.tires.levels[this.upgradeLevels.tires].grip - 1.0;
+        return base + upgBonus;
     }
     get brakesPower() {
-        return UPGRADES.brakes.levels[this.upgradeLevels.brakes].power;
+        const base = this._carStats ? this._carStats.brakes : 1.0;
+        const upgBonus = UPGRADES.brakes.levels[this.upgradeLevels.brakes].power - 1.0;
+        return base + upgBonus;
     }
     get maxHealth() {
-        return UPGRADES.body.levels[this.upgradeLevels.body].durability;
+        const base = this._carStats ? this._carStats.durability : 100;
+        const upgBonus = UPGRADES.body.levels[this.upgradeLevels.body].durability - 100;
+        return base + upgBonus;
     }
     get fareBonus() {
-        return UPGRADES.comfort.levels[this.upgradeLevels.comfort].fareBonus;
+        const base = this._carStats ? this._carStats.fareBonus : 1.0;
+        const upgBonus = UPGRADES.comfort.levels[this.upgradeLevels.comfort].fareBonus - 1.0;
+        return base + upgBonus;
+    }
+    get fuelEfficiency() {
+        return this._carStats ? this._carStats.fuelEfficiency : 1.0;
     }
 
     update(dt, city) {
@@ -167,14 +212,21 @@ class Taxi {
 
         this._applyMovement(dt, city);
 
-        // Fuel consumption
+        // Fuel consumption (affected by car's fuel efficiency)
         const moved = Math.abs(this.speed) * dt;
-        this.fuel -= moved * FUEL_CONSUMPTION_RATE;
+        this.fuel -= moved * FUEL_CONSUMPTION_RATE * this.fuelEfficiency;
         this.fuel = Math.max(0, this.fuel);
 
         // Mileage
         const kmMoved = moved / TILE_SIZE * 0.05;
         this.totalKm += kmMoved;
+
+        // Track ride statistics
+        if (this.hasPassenger) {
+            this.rideDistance += kmMoved;
+            this.rideSpeedSum += Math.abs(this.speed);
+            this.rideSpeedSamples++;
+        }
 
         // Tire wear (mechanics skill reduces wear)
         const mechanicsLvl = (this.skills && this.skills.mechanics) || 0;
@@ -361,29 +413,41 @@ class Taxi {
     }
 
     getInteractionBuilding(city) {
-        // Check if taxi is on/near a parking tile belonging to a service building
-        const { col, row } = pixelToTile(this.x, this.y);
+        // Check all buildings for interaction
         for (const b of city.buildings) {
-            if (b.type !== BUILDING_TYPE.GAS_STATION &&
-                b.type !== BUILDING_TYPE.MECHANIC &&
-                b.type !== BUILDING_TYPE.HOME) continue;
-
-            // Check if on the building's parking lot
-            if (b.parkingTiles && b.parkingTiles.length > 0) {
-                for (const pt of b.parkingTiles) {
-                    if (Math.abs(col - pt.col) <= 1 && Math.abs(row - pt.row) <= 1) {
+            const d = dist(this.x, this.y, b.px, b.py);
+            if (d < TILE_SIZE * 2.5 && Math.abs(this.speed) < 30) {
+                // Check if we're in the building's parking lot
+                for (const ptile of b.parkingTiles) {
+                    const pd = dist(this.x, this.y, ptile.x, ptile.y);
+                    if (pd < TILE_SIZE * 1.5) {
                         return b;
                     }
                 }
             }
-
-            // Fallback: close to building center (for buildings without parking)
-            const d = dist(this.x, this.y, b.px, b.py);
-            if (d < TILE_SIZE * 2.5) {
-                return b;
-            }
         }
         return null;
+    }
+
+    getRideStats() {
+        const rideTime = this.rideStartTime > 0 ? (Date.now() / 1000) - this.rideStartTime : 0;
+        const avgSpeed = this.rideSpeedSamples > 0 ? (this.rideSpeedSum / this.rideSpeedSamples) : 0;
+        
+        return {
+            rideTime,
+            waitTime: this.rideWaitTime,
+            avgSpeed,
+            distance: this.rideDistance
+        };
+    }
+
+    resetRideStats() {
+        this.rideDamageTaken = 0;
+        this.rideStartTime = 0;
+        this.rideWaitTime = 0;
+        this.rideDistance = 0;
+        this.rideSpeedSum = 0;
+        this.rideSpeedSamples = 0;
     }
 
     getBounds() {

@@ -318,8 +318,16 @@ class City {
             }
         }
 
+        // Assign district based on position (scalable for different city layouts)
+        const district = this._getDistrictForPosition(col, row);
+        
+        // Generate proper name for this building
+        const name = this._generateBuildingName(type, district);
+        
         const building = {
             col, row, w, h, type,
+            name,
+            district,
             x: col * TILE_SIZE,
             y: row * TILE_SIZE,
             px: col * TILE_SIZE + (w * TILE_SIZE) / 2,
@@ -449,31 +457,12 @@ class City {
     }
 
     getRandomRoadPosition() {
-        const tile = randChoice(this.roadTiles);
-        return tileToPixel(tile.col, tile.row);
-    }
-
-    getRandomSidewalkPosition() {
-        // Pick from pre-collected sidewalk tiles (guaranteed to be actual sidewalk)
-        if (this.sidewalkTiles && this.sidewalkTiles.length > 0) {
-            const tile = randChoice(this.sidewalkTiles);
+        if (this.roadTiles && this.roadTiles.length > 0) {
+            const tile = randChoice(this.roadTiles);
             return tileToPixel(tile.col, tile.row);
         }
-        // Fallback: search from road tiles
-        for (let attempt = 0; attempt < 60; attempt++) {
-            const roadTile = randChoice(this.roadTiles);
-            const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
-            for (const [dr, dc] of dirs) {
-                const r = roadTile.row + dr;
-                const c = roadTile.col + dc;
-                if (r >= 0 && r < MAP_ROWS && c >= 0 && c < MAP_COLS) {
-                    if (this.tiles[r][c] === TILE.SIDEWALK) {
-                        return tileToPixel(c, r);
-                    }
-                }
-            }
-        }
-        return this.getRandomRoadPosition();
+        // Fallback
+        return { x: rand(100, MAP_COLS * TILE_SIZE - 100), y: rand(100, MAP_ROWS * TILE_SIZE - 100) };
     }
 
     getSidewalkNearBuilding(building) {
@@ -566,5 +555,53 @@ class City {
             }
         }
         return null;
+    }
+
+    _getDistrictForPosition(col, row) {
+        // Simple grid-based district assignment (easily customizable for different city layouts)
+        const midCol = MAP_COLS / 2;
+        const midRow = MAP_ROWS / 2;
+        
+        if (col < midCol * 0.3) {
+            if (row < midRow * 0.3) return 'industrial';
+            if (row < midRow * 0.7) return 'harbor';
+            return 'industrial';
+        } else if (col < midCol * 0.7) {
+            if (row < midRow * 0.3) return 'university';
+            if (row < midRow * 0.7) return 'downtown';
+            return 'financial';
+        } else {
+            if (row < midRow * 0.3) return 'old_town';
+            if (row < midRow * 0.7) return 'downtown';
+            return 'old_town';
+        }
+    }
+
+    _generateBuildingName(type, district) {
+        const namePool = BUILDING_NAMES[type];
+        if (!namePool) return 'Building';
+        
+        // For variety, sometimes add district prefix
+        const districtNames = {
+            'downtown': ['Central', 'Metro', 'City'],
+            'old_town': ['Historic', 'Old', 'Heritage'],
+            'harbor': ['Harbor', 'Port', 'Marina'],
+            'industrial': ['Industrial', 'Factory', 'Plant'],
+            'university': ['University', 'Campus', 'Academic'],
+            'financial': ['Financial', 'Commerce', 'Business'],
+        };
+        
+        const baseName = randChoice(namePool);
+        
+        // 30% chance to add district prefix for more variety
+        if (Math.random() < 0.3 && district) {
+            const prefixes = districtNames[district] || [];
+            if (prefixes.length > 0) {
+                const prefix = randChoice(prefixes);
+                return `${prefix} ${baseName}`;
+            }
+        }
+        
+        return baseName;
     }
 }

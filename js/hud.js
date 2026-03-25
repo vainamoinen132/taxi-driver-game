@@ -20,11 +20,16 @@ class HUD {
         this.eventBanner = document.getElementById('event-banner');
         this.eventText = document.getElementById('event-text');
 
+        // Radio display elements
+        this.radioDisplay = document.getElementById('radio-display');
+        this.radioStation = document.getElementById('radio-station');
+        this.radioContent = document.getElementById('radio-content');
+
         this.lastNotifText = '';
         this.eventBannerTimer = 0;
     }
 
-    update(taxi, gameTime, hazardManager, eventManager, appOrderMgr, weather) {
+    update(taxi, gameTime, hazardManager, eventManager, appOrderMgr, weather, radio) {
         // Money
         this.moneyEl.textContent = Math.floor(taxi.money).toLocaleString();
 
@@ -106,6 +111,26 @@ class HUD {
         } else if (!notif) {
             this.notificationEl.classList.add('hidden');
             this.lastNotifText = '';
+        }
+
+        // Radio display
+        if (radio && this.radioDisplay) {
+            const content = radio.getCurrentContent();
+            const stationInfo = radio.getCurrentStationInfo();
+            
+            if (stationInfo.enabled && content) {
+                this.radioDisplay.classList.remove('hidden');
+                this.radioStation.textContent = stationInfo.name;
+                this.radioStation.style.color = stationInfo.color;
+                
+                if (content.type === 'music') {
+                    this.radioContent.textContent = `🎵 ${content.title} - ${content.artist}`;
+                } else if (content.type === 'news') {
+                    this.radioContent.textContent = `📰 ${content.text}`;
+                }
+            } else {
+                this.radioDisplay.classList.add('hidden');
+            }
         }
 
         // Interaction prompt

@@ -41,13 +41,18 @@ class NpcCar {
         // Snap to nearest road tile if not on one
         if (!this._isRoad(row, col)) {
             const snap = this._findNearestRoadTile(row, col);
-            if (snap) { row = snap.row; col = snap.col; }
+            if (snap) {
+                row = snap.row; col = snap.col;
+                // Teleport NPC to road center to prevent getting stuck off-road
+                const ctr = tileToPixel(col, row);
+                this.x = ctr.x;
+                this.y = ctr.y;
+            }
         }
 
         // Walk along road tiles to build waypoint chain
         const visited = new Set();
         let cr = row, cc = col;
-        // Pick a direction based on road type
         let dirs = this._getRoadDirs(cr, cc);
         if (dirs.length === 0) return;
         let dir = randChoice(dirs);
@@ -58,7 +63,12 @@ class NpcCar {
             visited.add(key);
 
             const pos = tileToPixel(cc, cr);
-            this.waypoints.push({ x: pos.x, y: pos.y });
+            // Offset slightly to right side of road for lane discipline
+            const laneOff = 6;
+            this.waypoints.push({
+                x: pos.x + dir.dc * 0 + dir.dr * laneOff,
+                y: pos.y + dir.dr * 0 + dir.dc * laneOff
+            });
 
             // Try to continue in current direction
             const nr = cr + dir.dr;
@@ -67,12 +77,14 @@ class NpcCar {
                 cr = nr;
                 cc = nc;
             } else {
-                // At intersection or dead end, pick a new valid direction
+                // At intersection or dead end, prefer forward-ish directions
                 const newDirs = this._getRoadDirs(cr, cc).filter(d =>
-                    !(d.dr === -dir.dr && d.dc === -dir.dc) // don't go backward
+                    !(d.dr === -dir.dr && d.dc === -dir.dc)
                 );
                 if (newDirs.length > 0) {
-                    dir = randChoice(newDirs);
+                    // Prefer continuing straight if possible
+                    const straight = newDirs.find(d => d.dr === dir.dr && d.dc === dir.dc);
+                    dir = straight || randChoice(newDirs);
                     const nr2 = cr + dir.dr;
                     const nc2 = cc + dir.dc;
                     if (this._isRoad(nr2, nc2)) {
@@ -111,7 +123,7 @@ class NpcCar {
         return null;
     }
 
-    update(dt, allCars, playerTaxi) {
+    update(dt, allCars, playerTaxi, hazardMgr) {
         if (this.waypoints.length < 2) {
             this._buildPath();
             if (this.waypoints.length < 2) {
@@ -176,6 +188,21 @@ class NpcCar {
             }
         }
 
+        // Stop at red traffic lights
+        if (hazardMgr && hazardMgr.trafficLights) {
+            for (const light of hazardMgr.trafficLights) {
+                const ld = dist(this.x, this.y, light.x, light.y);
+                if (ld < TILE_SIZE * 2) {
+                    const state = hazardMgr.getTrafficLightState(light);
+                    if (state === 'red') {
+                        brakeAmount = Math.max(brakeAmount, 0.95);
+                    } else if (state === 'yellow') {
+                        brakeAmount = Math.max(brakeAmount, 0.6);
+                    }
+                }
+            }
+        }
+
         // Speed control
         const wantedSpeed = this.maxSpeed * turnFactor * (1.0 - brakeAmount * 0.9);
         if (this.speed < wantedSpeed) {
@@ -191,7 +218,7 @@ class NpcCar {
         const newX = this.x + vx;
         const newY = this.y + vy;
 
-        // Only move if still on road or sidewalk (never cut through buildings)
+        // Only move on road tiles
         const tile = pixelToTile(newX, newY);
         if (tile.row >= 0 && tile.row < MAP_ROWS && tile.col >= 0 && tile.col < MAP_COLS) {
             const t = this.city.tiles[tile.row][tile.col];
@@ -199,17 +226,23 @@ class NpcCar {
                 this.x = newX;
                 this.y = newY;
             } else {
-                // Off-road — rebuild path
+                // Off-road — snap back to nearest road and rebuild
                 this.speed = 0;
+                const snap = this._findNearestRoadTile(tile.row, tile.col);
+                if (snap) {
+                    const ctr = tileToPixel(snap.col, snap.row);
+                    this.x = ctr.x;
+                    this.y = ctr.y;
+                }
                 this._buildPath();
             }
         }
 
-        // Stuck detection — respawn far from player if stuck too long
+        // Stuck detection — respawn quickly if stuck
         const moved = dist(this.x, this.y, this.lastX, this.lastY);
-        if (moved < 0.5) {
+        if (moved < 0.3) {
             this.stuckTimer += dt;
-            if (this.stuckTimer > 5) {
+            if (this.stuckTimer > 2.5) {
                 this._respawnFarFromPlayer(playerTaxi);
             }
         } else {
@@ -480,7 +513,7 @@ class TrafficManager {
         this.buses = [];
     }
 
-    update(dt, playerTaxi) {
+    update(dt, playerTaxi, hazardMgr) {
         // Spawn NPC cars
         while (this.cars.length < MAX_NPC_CARS) {
             let spawned = false;
@@ -513,7 +546,7 @@ class TrafficManager {
         }
 
         for (const car of this.cars) {
-            car.update(dt, this.cars, playerTaxi);
+            car.update(dt, this.cars, playerTaxi, hazardMgr);
         }
 
         for (const ped of this.pedestrians) {

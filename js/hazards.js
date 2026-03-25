@@ -6,15 +6,20 @@ class HazardManager {
     constructor(city) {
         this.city = city;
         this.speedCameras = [];
+        this.trafficLights = [];
         this.notifications = [];
         this.accidentCooldown = 0;
+        this.challengeMgr = null; // Will be set by game
 
-        // Place speed cameras at some intersections
         this._placeSpeedCameras();
+        this._placeTrafficLights();
+    }
+
+    setChallengeManager(challengeMgr) {
+        this.challengeMgr = challengeMgr;
     }
 
     _placeSpeedCameras() {
-        // Place cameras at ~30% of intersections
         for (const rRow of this.city.horizontalRoads) {
             for (const cCol of this.city.verticalRoads) {
                 if (Math.random() < 0.1) {
@@ -29,27 +34,85 @@ class HazardManager {
         }
     }
 
+    _placeTrafficLights() {
+        for (const rRow of this.city.horizontalRoads) {
+            for (const cCol of this.city.verticalRoads) {
+                if (Math.random() < TRAFFIC_LIGHT_PLACEMENT) {
+                    this.trafficLights.push({
+                        x: cCol * TILE_SIZE + TILE_SIZE / 2,
+                        y: rRow * TILE_SIZE + TILE_SIZE / 2,
+                        timer: Math.random() * TRAFFIC_LIGHT_CYCLE,
+                        cooldown: 0,
+                        radius: TILE_SIZE * 1.2,
+                    });
+                }
+            }
+        }
+    }
+
+    getTrafficLightState(light) {
+        const t = light.timer % TRAFFIC_LIGHT_CYCLE;
+        const greenEnd = TRAFFIC_LIGHT_CYCLE * 0.45;
+        const yellowEnd = TRAFFIC_LIGHT_CYCLE * 0.55;
+        if (t < greenEnd) return 'green';
+        if (t < yellowEnd) return 'yellow';
+        return 'red';
+    }
+
+    _getLocalSpeedLimit(taxi) {
+        // Check if near school or hospital — slow zone
+        for (const b of this.city.buildings) {
+            if (b.type === 'school' || b.type === 'hospital') {
+                const d = dist(taxi.x, taxi.y, b.px, b.py);
+                if (d < TILE_SIZE * 4) return SPEED_LIMIT_SLOW;
+            }
+        }
+        return SPEED_LIMIT_CITY;
+    }
+
     update(dt, taxi) {
-        // Speed camera checks
+        // Traffic light updates
+        for (const light of this.trafficLights) {
+            light.timer += dt;
+            if (light.cooldown > 0) light.cooldown -= dt;
+
+            // Check red light running
+            if (light.cooldown <= 0) {
+                const state = this.getTrafficLightState(light);
+                if (state === 'red') {
+                    const d = dist(taxi.x, taxi.y, light.x, light.y);
+                    if (d < light.radius && Math.abs(taxi.speed) > 20) {
+                        taxi.money -= RED_LIGHT_FINE;
+                        taxi.totalFines++;
+                        light.cooldown = TRAFFIC_LIGHT_CYCLE;
+                        this.addNotification(`🚦 Red light! Fine -${formatMoney(RED_LIGHT_FINE)}`, 'danger');
+                        taxi.flashTimer = 0.5;
+                        taxi.flashColor = '#ff4444';
+                    }
+                }
+            }
+        }
+
+        // Speed camera checks — use local speed limit
+        const localLimit = this._getLocalSpeedLimit(taxi);
         for (const cam of this.speedCameras) {
             if (cam.cooldown > 0) {
                 cam.cooldown -= dt;
                 continue;
             }
             const d = dist(taxi.x, taxi.y, cam.x, cam.y);
-            if (d < cam.radius && taxi.currentDisplaySpeed > SPEED_LIMIT) {
-                // FINED!
-                const fine = SPEED_FINE_AMOUNT + Math.floor((taxi.currentDisplaySpeed - SPEED_LIMIT) * 0.5);
+            if (d < cam.radius && taxi.currentDisplaySpeed > localLimit) {
+                const fine = SPEED_FINE_AMOUNT + Math.floor((taxi.currentDisplaySpeed - localLimit) * 0.5);
                 taxi.money -= fine;
                 taxi.totalFines++;
-                cam.cooldown = 30; // 30 seconds before same camera can fine again
-                this.addNotification(`📸 Speed fine! -${formatMoney(fine)} (${Math.floor(taxi.currentDisplaySpeed)} km/h)`, 'danger');
+                cam.cooldown = 30;
+                this.addNotification(`📸 Speed fine! -${formatMoney(fine)} (${Math.floor(taxi.currentDisplaySpeed)}/${localLimit} km/h)`, 'danger');
                 taxi.flashTimer = 0.5;
                 taxi.flashColor = '#ff4444';
             }
         }
 
-        // Random accident chance (very rare, based on speed and mileage)
+        // Random accident chance (very rare)
         this.accidentCooldown -= dt;
         if (this.accidentCooldown <= 0 && taxi.invulnTimer <= 0) {
             const accidentChance = (taxi.currentDisplaySpeed / 2000) * (taxi.totalKm / 200) * dt * 0.003;

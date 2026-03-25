@@ -46,7 +46,7 @@ class Renderer {
         mm.height = mm.clientHeight;
     }
 
-    render(camera, city, taxi, aiTaxis, trafficMgr, passengerMgr, hazardMgr, eventMgr, appOrderMgr, gameTime, dt, weather) {
+    render(camera, city, taxi, aiTaxis, trafficMgr, passengerMgr, hazardMgr, eventMgr, appOrderMgr, gameTime, dt, weather, gps, police) {
         const ctx = this.ctx;
         const cam = camera;
 
@@ -71,7 +71,10 @@ class Renderer {
         this._drawFuelPriceSigns(ctx, cam, city);
 
         // Draw traffic lights at intersections
-        this._drawTrafficLights(ctx, cam, city);
+        this._drawTrafficLights(ctx, cam, hazardMgr);
+
+        // Draw speed limit signs on roads
+        this._drawSpeedLimitSigns(ctx, cam, city, hazardMgr, taxi);
 
         // Draw speed cameras
         this._drawSpeedCameras(ctx, cam, hazardMgr);
@@ -95,6 +98,11 @@ class Renderer {
             }
         }
 
+        // Draw police patrols
+        if (police) {
+            police.draw(ctx, cam);
+        }
+
         // Draw AI taxis
         for (const ai of aiTaxis) {
             this._drawCar(ctx, cam, ai.x, ai.y, ai.angle, ai.width, ai.height, ai.color, false, weather);
@@ -105,6 +113,11 @@ class Renderer {
 
         // Draw player taxi
         this._drawPlayerTaxi(ctx, cam, taxi, weather);
+
+        // Draw GPS route if available
+        if (gps && gps.enabled) {
+            gps.drawRoute(ctx, cam);
+        }
 
         // Draw destination marker if has passenger
         if (taxi.hasPassenger && taxi.passenger) {
@@ -216,15 +229,17 @@ class Renderer {
                 }
 
                 // Road — subtle asphalt texture
-                if (tile === TILE.ROAD_H || tile === TILE.ROAD_V || tile === TILE.ROAD_CROSS) {
+                if (tile === TILE.ROAD_H || tile === TILE.ROAD_V) {
                     if (seed < 25) {
-                        ctx.fillStyle = 'rgba(0,0,0,0.06)';
+                        ctx.fillStyle = 'rgba(0,0,0,0.05)';
                         ctx.fillRect(sx + (seed % 50), sy + ((seed * 3) % 50), 6, 3);
                     }
-                    // Curb edge hints
-                    ctx.fillStyle = 'rgba(255,255,255,0.04)';
-                    ctx.fillRect(sx, sy, TILE_SIZE, 2);
-                    ctx.fillRect(sx, sy + TILE_SIZE - 2, TILE_SIZE, 2);
+                }
+
+                // Intersection — slightly darker with stop area
+                if (tile === TILE.ROAD_CROSS) {
+                    ctx.fillStyle = 'rgba(0,0,0,0.04)';
+                    ctx.fillRect(sx, sy, TILE_SIZE + 1, TILE_SIZE + 1);
                 }
 
                 // Parking lot markings
@@ -558,10 +573,11 @@ class Renderer {
     }
 
     _drawPlayerTaxi(ctx, cam, taxi, weather) {
-        // Flash effect
-        let color = '#f5c518';
+        // Flash effect — use car's own color
+        const baseColor = taxi.carColor || '#f5c518';
+        let color = baseColor;
         if (taxi.flashTimer > 0 && taxi.flashColor) {
-            color = Math.sin(taxi.flashTimer * 20) > 0 ? taxi.flashColor : '#f5c518';
+            color = Math.sin(taxi.flashTimer * 20) > 0 ? taxi.flashColor : baseColor;
         }
 
         // Low fuel warning pulse
@@ -868,60 +884,102 @@ class Renderer {
         }
     }
 
-    _drawTrafficLights(ctx, cam, city) {
-        // Draw traffic lights at ~30% of intersections (deterministic based on position)
-        const cycle = Date.now() / 1000;
-        for (const rRow of city.horizontalRoads) {
-            for (const cCol of city.verticalRoads) {
-                // Only place traffic lights at some intersections
-                if ((rRow * 7 + cCol * 13) % 10 > 2) continue;
+    _drawTrafficLights(ctx, cam, hazardMgr) {
+        if (!hazardMgr || !hazardMgr.trafficLights) return;
+        for (const light of hazardMgr.trafficLights) {
+            const sx = light.x - cam.x;
+            const sy = light.y - cam.y;
+            if (sx < -40 || sx > this.canvas.width + 40 || sy < -40 || sy > this.canvas.height + 40) continue;
 
-                const x = cCol * TILE_SIZE - cam.x;
-                const y = rRow * TILE_SIZE - cam.y;
+            const state = hazardMgr.getTrafficLightState(light);
+            const color = state === 'green' ? '#2ecc71' : state === 'yellow' ? '#f1c40f' : '#e74c3c';
 
-                // Skip if off-screen
-                if (x < -30 || x > this.canvas.width + 30 || y < -30 || y > this.canvas.height + 30) continue;
+            // Light pole
+            ctx.fillStyle = '#555';
+            ctx.fillRect(sx - 3, sy - 16, 6, 20);
+            // Housing
+            ctx.fillStyle = '#222';
+            ctx.fillRect(sx - 5, sy - 16, 10, 16);
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(sx - 5, sy - 16, 10, 16);
 
-                // Traffic light cycles: 6s green, 2s yellow, 6s red for each direction
-                // Each intersection has a unique phase offset
-                const phase = ((rRow * 13 + cCol * 7) % 14);
-                const t = ((cycle + phase) % 14);
-                let hColor = '#e74c3c', vColor = '#e74c3c';
-                if (t < 6) {
-                    hColor = '#2ecc71'; vColor = '#e74c3c';
-                } else if (t < 8) {
-                    hColor = '#f1c40f'; vColor = '#e74c3c';
-                } else if (t < 12) {
-                    vColor = '#2ecc71'; hColor = '#e74c3c';
-                } else {
-                    vColor = '#f1c40f'; hColor = '#e74c3c';
+            // Three light circles (red/yellow/green positions)
+            const lightY = [sy - 14, sy - 9, sy - 4];
+            const lightC = ['#e74c3c', '#f1c40f', '#2ecc71'];
+            for (let i = 0; i < 3; i++) {
+                ctx.fillStyle = (state === 'red' && i === 0) || (state === 'yellow' && i === 1) || (state === 'green' && i === 2)
+                    ? lightC[i] : 'rgba(40,40,40,0.8)';
+                ctx.beginPath();
+                ctx.arc(sx, lightY[i], 2.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Glow effect for active light
+            ctx.globalAlpha = 0.15;
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(sx, sy, 12, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        }
+    }
+
+    _drawSpeedLimitSigns(ctx, cam, city, hazardMgr, taxi) {
+        if (!hazardMgr) return;
+        // Draw speed limit signs near schools and hospitals
+        for (const b of city.buildings) {
+            if (b.type !== 'school' && b.type !== 'hospital') continue;
+            if (!cam.isVisible(b.x - 20, b.y - 20, b.width + 40, b.height + 40)) continue;
+
+            const sx = b.px - cam.x;
+            const sy = b.py - cam.y - b.height / 2 - 10;
+
+            // Speed sign
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(sx, sy, 10, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#e74c3c';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.arc(sx, sy, 10, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.fillStyle = '#222';
+            ctx.font = 'bold 8px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(SPEED_LIMIT_SLOW, sx, sy);
+        }
+
+        // Also paint speed limit on some road segments
+        const playerTile = pixelToTile(taxi.x, taxi.y);
+        for (let r = Math.max(0, playerTile.row - 6); r < Math.min(MAP_ROWS, playerTile.row + 6); r++) {
+            for (let c = Math.max(0, playerTile.col - 6); c < Math.min(MAP_COLS, playerTile.col + 6); c++) {
+                const tile = city.tiles[r][c];
+                if (tile !== TILE.ROAD_H && tile !== TILE.ROAD_V) continue;
+                // Only paint on some road tiles (deterministic)
+                const seed = (r * 137 + c * 251) % 100;
+                if (seed !== 5 && seed !== 42) continue;
+
+                const sx = c * TILE_SIZE - cam.x;
+                const sy = r * TILE_SIZE - cam.y;
+
+                // Determine speed limit for this area
+                let limit = SPEED_LIMIT_CITY;
+                for (const b of city.buildings) {
+                    if (b.type === 'school' || b.type === 'hospital') {
+                        const d = dist(c * TILE_SIZE + TILE_SIZE / 2, r * TILE_SIZE + TILE_SIZE / 2, b.px, b.py);
+                        if (d < TILE_SIZE * 4) { limit = SPEED_LIMIT_SLOW; break; }
+                    }
                 }
 
-                // Draw 4 traffic lights at intersection corners
-                const offsets = [
-                    { dx: -8, dy: -8 },  // top-left
-                    { dx: TILE_SIZE * 2 + 4, dy: -8 },  // top-right
-                    { dx: -8, dy: TILE_SIZE * 2 + 4 },  // bottom-left
-                    { dx: TILE_SIZE * 2 + 4, dy: TILE_SIZE * 2 + 4 },  // bottom-right
-                ];
-
-                for (let i = 0; i < offsets.length; i++) {
-                    const lx = x + offsets[i].dx;
-                    const ly = y + offsets[i].dy;
-                    // Pole
-                    ctx.fillStyle = '#444';
-                    ctx.fillRect(lx, ly, 6, 14);
-                    // Light housing
-                    ctx.fillStyle = '#222';
-                    ctx.fillRect(lx - 1, ly, 8, 14);
-                    // Active light (top/bottom = horizontal road light, left/right = vertical)
-                    const isHorizontalLight = (i === 0 || i === 3);
-                    const color = isHorizontalLight ? hColor : vColor;
-                    ctx.fillStyle = color;
-                    ctx.beginPath();
-                    ctx.arc(lx + 3, ly + 7, 3, 0, Math.PI * 2);
-                    ctx.fill();
-                }
+                // Paint speed limit on road
+                ctx.fillStyle = 'rgba(255,255,255,0.45)';
+                ctx.font = 'bold 11px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(limit, sx + TILE_SIZE / 2, sy + TILE_SIZE / 2);
             }
         }
     }
