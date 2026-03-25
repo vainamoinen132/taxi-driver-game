@@ -33,7 +33,10 @@ class NpcCar {
     }
 
     _buildPath() {
-        // Build a path along connected road tiles from current position
+        // Build a path along connected road tiles, respecting German
+        // right-hand traffic:
+        //   Horizontal roads: top row → LEFT (dc=-1), bottom row → RIGHT (dc=+1)
+        //   Vertical roads:   left col → DOWN (dr=+1), right col → UP (dr=-1)
         this.waypoints = [];
         this.waypointIdx = 0;
         let { col, row } = pixelToTile(this.x, this.y);
@@ -43,19 +46,31 @@ class NpcCar {
             const snap = this._findNearestRoadTile(row, col);
             if (snap) {
                 row = snap.row; col = snap.col;
-                // Teleport NPC to road center to prevent getting stuck off-road
                 const ctr = tileToPixel(col, row);
                 this.x = ctr.x;
                 this.y = ctr.y;
             }
         }
 
+        // Determine correct driving direction for starting tile
+        const startDir = this._getLaneDirection(row, col);
+        if (!startDir) {
+            // At intersection or unknown — pick a valid exit direction
+            const dirs = this._getRoadDirs(row, col);
+            if (dirs.length === 0) return;
+            // Filter to directions that lead to a tile we can drive correctly on
+            const legalDirs = dirs.filter(d => {
+                const nr = row + d.dr, nc = col + d.dc;
+                return this._isRoad(nr, nc) && this._isLegalLane(nr, nc, d);
+            });
+            var dir = legalDirs.length > 0 ? randChoice(legalDirs) : randChoice(dirs);
+        } else {
+            var dir = startDir;
+        }
+
         // Walk along road tiles to build waypoint chain
         const visited = new Set();
         let cr = row, cc = col;
-        let dirs = this._getRoadDirs(cr, cc);
-        if (dirs.length === 0) return;
-        let dir = randChoice(dirs);
 
         for (let step = 0; step < 40; step++) {
             const key = `${cr},${cc}`;
@@ -63,12 +78,7 @@ class NpcCar {
             visited.add(key);
 
             const pos = tileToPixel(cc, cr);
-            // Offset slightly to right side of road for lane discipline
-            const laneOff = 6;
-            this.waypoints.push({
-                x: pos.x + dir.dc * 0 + dir.dr * laneOff,
-                y: pos.y + dir.dr * 0 + dir.dc * laneOff
-            });
+            this.waypoints.push({ x: pos.x, y: pos.y });
 
             // Try to continue in current direction
             const nr = cr + dir.dr;
@@ -77,14 +87,18 @@ class NpcCar {
                 cr = nr;
                 cc = nc;
             } else {
-                // At intersection or dead end, prefer forward-ish directions
+                // At intersection or dead end — pick a new legal direction
                 const newDirs = this._getRoadDirs(cr, cc).filter(d =>
-                    !(d.dr === -dir.dr && d.dc === -dir.dc)
+                    !(d.dr === -dir.dr && d.dc === -dir.dc) // no U-turns
                 );
                 if (newDirs.length > 0) {
-                    // Prefer continuing straight if possible
+                    // Prefer directions that respect lane rules
+                    const legalNew = newDirs.filter(d => {
+                        const nr2 = cr + d.dr, nc2 = cc + d.dc;
+                        return this._isRoad(nr2, nc2) && this._isLegalLane(nr2, nc2, d);
+                    });
                     const straight = newDirs.find(d => d.dr === dir.dr && d.dc === dir.dc);
-                    dir = straight || randChoice(newDirs);
+                    dir = straight || (legalNew.length > 0 ? randChoice(legalNew) : randChoice(newDirs));
                     const nr2 = cr + dir.dr;
                     const nc2 = cc + dir.dc;
                     if (this._isRoad(nr2, nc2)) {
@@ -94,6 +108,33 @@ class NpcCar {
                 } else break;
             }
         }
+    }
+
+    // Get the correct driving direction for a road tile based on German traffic rules
+    _getLaneDirection(r, c) {
+        if (r < 0 || r >= MAP_ROWS || c < 0 || c >= MAP_COLS) return null;
+        const tile = this.city.tiles[r][c];
+        if (tile === TILE.ROAD_H) {
+            // Top lane = LEFT, bottom lane = RIGHT
+            const aboveIsH = (r - 1 >= 0) && (this.city.tiles[r - 1][c] === TILE.ROAD_H || this.city.tiles[r - 1][c] === TILE.ROAD_CROSS);
+            if (!aboveIsH) return { dr: 0, dc: -1 }; // top lane → LEFT
+            return { dr: 0, dc: 1 };                   // bottom lane → RIGHT
+        }
+        if (tile === TILE.ROAD_V) {
+            // Left col = DOWN, right col = UP
+            const leftIsV = (c - 1 >= 0) && (this.city.tiles[r][c - 1] === TILE.ROAD_V || this.city.tiles[r][c - 1] === TILE.ROAD_CROSS);
+            if (!leftIsV) return { dr: 1, dc: 0 };  // left col → DOWN
+            return { dr: -1, dc: 0 };                 // right col → UP
+        }
+        // Intersection or other — no specific direction
+        return null;
+    }
+
+    // Check if driving in direction d on tile (r,c) matches lane rules
+    _isLegalLane(r, c, d) {
+        const laneDir = this._getLaneDirection(r, c);
+        if (!laneDir) return true; // intersections are fine
+        return laneDir.dr === d.dr && laneDir.dc === d.dc;
     }
 
     _isRoad(r, c) {
