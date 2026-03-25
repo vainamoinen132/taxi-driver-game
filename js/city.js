@@ -536,6 +536,51 @@ class City {
         return this.getRandomRoadPosition();
     }
 
+    getRandomSidewalkPosition() {
+        // Collect sidewalk tiles and pick one at random; fall back to road if none found
+        const sidewalks = [];
+        for (let r = 0; r < MAP_ROWS; r++) {
+            for (let c = 0; c < MAP_COLS; c++) {
+                if (this.tiles[r][c] === TILE.SIDEWALK) {
+                    sidewalks.push({ col: c, row: r });
+                }
+            }
+        }
+        if (sidewalks.length > 0) {
+            const tile = randChoice(sidewalks);
+            return tileToPixel(tile.col, tile.row);
+        }
+        return this.getRandomRoadPosition();
+    }
+
+    getSidewalkNearBuilding(building) {
+        // Search outward from building for a sidewalk tile
+        for (let radius = 1; radius < 6; radius++) {
+            for (let dr = -radius; dr <= radius; dr++) {
+                for (let dc = -radius; dc <= radius; dc++) {
+                    const r = building.row + dr;
+                    const c = building.col + dc;
+                    if (r >= 0 && r < MAP_ROWS && c >= 0 && c < MAP_COLS) {
+                        if (this.tiles[r][c] === TILE.SIDEWALK) {
+                            return tileToPixel(c, r);
+                        }
+                    }
+                }
+            }
+        }
+        // Fall back to road near building
+        return this.getRoadNearBuilding(building);
+    }
+
+    getRandomDestinationBuilding(excludeTypes) {
+        let candidates = this.buildings;
+        if (excludeTypes && excludeTypes.length > 0) {
+            candidates = candidates.filter(b => !excludeTypes.includes(b.type));
+        }
+        if (candidates.length === 0) return null;
+        return randChoice(candidates);
+    }
+
     isRoadAt(x, y) {
         const { col, row } = pixelToTile(x, y);
         if (row < 0 || row >= MAP_ROWS || col < 0 || col >= MAP_COLS) return false;
