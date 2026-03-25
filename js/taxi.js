@@ -292,7 +292,8 @@ class Taxi {
         if (Math.abs(this.speed) > 5) {
             const enduranceLvl = (this.skills && this.skills.endurance) || 0;
             const charFatigueMod = (this.characterBonuses && this.characterBonuses.fatigueRate) || 1.0;
-            this.fatigue += FATIGUE_RATE * (1 - enduranceLvl * 0.15) * charFatigueMod * dt;
+            const coffeeMod = (this.personalItems && this.personalItems.coffee_thermos) ? 0.8 : 1.0;
+            this.fatigue += FATIGUE_RATE * (1 - enduranceLvl * 0.15) * charFatigueMod * coffeeMod * dt;
             this.fatigue = Math.min(this.fatigue, MAX_FATIGUE);
         }
     }
@@ -375,6 +376,10 @@ class Taxi {
     }
 
     addRating(stars) {
+        // Air freshener boosts ratings by 5%
+        if (this.personalItems && this.personalItems.air_freshener) {
+            stars = Math.min(5, stars * 1.05);
+        }
         this.ratingHistory.push(stars);
         if (this.ratingHistory.length > RATING_SMOOTH_FARES) {
             this.ratingHistory.shift();
