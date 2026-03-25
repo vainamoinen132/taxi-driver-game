@@ -303,16 +303,23 @@ class City {
     }
 
     _findBuildingSpot(block, w, h) {
-        // Find a spot within the block interior (not on sidewalk edges)
+        // Find a spot within the block interior — only on GRASS tiles, with 2-tile margin from block edges
+        // to prevent buildings from touching sidewalks/roads
+        const margin = 2;
+        const minCol = block.minCol + margin;
+        const maxCol = block.maxCol - w - margin + 1;
+        const minRow = block.minRow + margin;
+        const maxRow = block.maxRow - h - margin + 1;
+        if (minCol > maxCol || minRow > maxRow) return null;
+
         for (let attempt = 0; attempt < 30; attempt++) {
-            const col = this.rng.randInt(block.minCol + 1, block.maxCol - w);
-            const row = this.rng.randInt(block.minRow + 1, block.maxRow - h);
-            if (col < 0 || row < 0) continue;
+            const col = this.rng.randInt(minCol, maxCol);
+            const row = this.rng.randInt(minRow, maxRow);
             if (col + w > MAP_COLS || row + h > MAP_ROWS) continue;
             let valid = true;
             for (let r = row; r < row + h && valid; r++) {
                 for (let c = col; c < col + w && valid; c++) {
-                    if (this.tiles[r][c] !== TILE.GRASS && this.tiles[r][c] !== TILE.SIDEWALK) {
+                    if (this.tiles[r][c] !== TILE.GRASS) {
                         valid = false;
                     }
                 }
@@ -351,7 +358,7 @@ class City {
         };
         // Gas stations get unique fuel prices
         if (type === BUILDING_TYPE.GAS_STATION) {
-            building.fuelPrice = rand(FUEL_PRICE_MIN, FUEL_PRICE_MAX);
+            building.fuelPrice = this.rng.rand(FUEL_PRICE_MIN, FUEL_PRICE_MAX);
             building.fuelPrice = Math.round(building.fuelPrice * 100) / 100;
         }
         this.buildings.push(building);
@@ -377,7 +384,7 @@ class City {
             { dc: 1, dr: 0, label: 'right' },
         ];
         // Shuffle so parking placement varies
-        sides.sort(() => Math.random() - 0.5);
+        sides.sort(() => this.rng.next() - 0.5);
 
         for (const side of sides) {
             const tiles = [];
@@ -478,29 +485,6 @@ class City {
         return { x: rand(100, MAP_COLS * TILE_SIZE - 100), y: rand(100, MAP_ROWS * TILE_SIZE - 100) };
     }
 
-    getSidewalkNearBuilding(building) {
-        // Find a sidewalk tile near a building (search outward)
-        for (let radius = 1; radius < 6; radius++) {
-            const candidates = [];
-            for (let dr = -radius; dr <= radius; dr++) {
-                for (let dc = -radius; dc <= radius; dc++) {
-                    const r = building.row + dr;
-                    const c = building.col + dc;
-                    if (r >= 0 && r < MAP_ROWS && c >= 0 && c < MAP_COLS) {
-                        if (this.tiles[r][c] === TILE.SIDEWALK) {
-                            candidates.push({ col: c, row: r });
-                        }
-                    }
-                }
-            }
-            if (candidates.length > 0) {
-                const pick = randChoice(candidates);
-                return tileToPixel(pick.col, pick.row);
-            }
-        }
-        return this.getRoadNearBuilding(building);
-    }
-
     getBuildingsOfType(type) {
         return this.buildings.filter(b => b.type === type);
     }
@@ -517,17 +501,6 @@ class City {
             }
         }
         return nearest;
-    }
-
-    // Get a random building as a destination (excluding gas station/mechanic)
-    getRandomDestinationBuilding(excludeTypes = []) {
-        const candidates = this.buildings.filter(b =>
-            b.type !== BUILDING_TYPE.GAS_STATION &&
-            b.type !== BUILDING_TYPE.MECHANIC &&
-            b.type !== BUILDING_TYPE.HOME &&
-            !excludeTypes.includes(b.type)
-        );
-        return candidates.length > 0 ? randChoice(candidates) : randChoice(this.buildings);
     }
 
     // Get road position near a building

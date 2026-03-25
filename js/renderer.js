@@ -15,15 +15,15 @@ class Renderer {
         // Pre-render tile colors (clean city style)
         this.tileColors = {
             [TILE.GRASS]: '#7bc558',
-            [TILE.ROAD_H]: '#8a8a8a',
-            [TILE.ROAD_V]: '#8a8a8a',
-            [TILE.ROAD_CROSS]: '#909090',
-            [TILE.SIDEWALK]: '#d4ccbc',
+            [TILE.ROAD_H]: '#6a6a6a',
+            [TILE.ROAD_V]: '#6a6a6a',
+            [TILE.ROAD_CROSS]: '#6e6e6e',
+            [TILE.SIDEWALK]: '#c8c0b0',
             [TILE.BUILDING]: '#c0b8a8',
             [TILE.WATER]: '#6bb8e8',
             [TILE.PARK]: '#6dce55',
-            [TILE.PARKING]: '#999999',
-            [TILE.HIGHWAY]: '#707070',
+            [TILE.PARKING]: '#8a8a8a',
+            [TILE.HIGHWAY]: '#555555',
         };
 
         // Road markings pattern
@@ -246,11 +246,7 @@ class Renderer {
                     }
                 }
 
-                // Intersection — slightly darker with stop area
-                if (tile === TILE.ROAD_CROSS) {
-                    ctx.fillStyle = 'rgba(0,0,0,0.04)';
-                    ctx.fillRect(sx, sy, TILE_SIZE + 1, TILE_SIZE + 1);
-                }
+                // Intersection — clean asphalt, no markings
 
                 // Parking lot markings
                 if (tile === TILE.PARKING) {
@@ -279,36 +275,46 @@ class Renderer {
                     ctx.fillText('P', sx + TILE_SIZE / 2, sy + TILE_SIZE / 2);
                 }
 
-                // Highway markings
+                // Highway markings — clean dark asphalt with white lane dashes
                 if (tile === TILE.HIGHWAY) {
-                    ctx.strokeStyle = '#ffffff44';
-                    ctx.lineWidth = 2;
-                    ctx.setLineDash([]);
                     const aboveHwy = r > 0 && city.tiles[r - 1][c] === TILE.HIGHWAY;
                     const belowHwy = r < MAP_ROWS - 1 && city.tiles[r + 1][c] === TILE.HIGHWAY;
                     const leftHwy = c > 0 && city.tiles[r][c - 1] === TILE.HIGHWAY;
                     const rightHwy = c < MAP_COLS - 1 && city.tiles[r][c + 1] === TILE.HIGHWAY;
+
+                    // White dashed lane line through center
+                    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+                    ctx.lineWidth = 1.5;
+                    ctx.setLineDash([10, 16]);
                     if (leftHwy || rightHwy) {
-                        ctx.strokeStyle = '#FFD70055';
-                        ctx.setLineDash([8, 8]);
                         ctx.beginPath();
                         ctx.moveTo(sx, sy + TILE_SIZE / 2);
                         ctx.lineTo(sx + TILE_SIZE, sy + TILE_SIZE / 2);
                         ctx.stroke();
                     }
                     if (aboveHwy || belowHwy) {
-                        ctx.strokeStyle = '#FFD70055';
-                        ctx.setLineDash([8, 8]);
                         ctx.beginPath();
                         ctx.moveTo(sx + TILE_SIZE / 2, sy);
                         ctx.lineTo(sx + TILE_SIZE / 2, sy + TILE_SIZE);
                         ctx.stroke();
                     }
                     ctx.setLineDash([]);
-                    // Highway edge stripe
-                    ctx.fillStyle = 'rgba(255,255,255,0.12)';
-                    ctx.fillRect(sx, sy, TILE_SIZE, 2);
-                    ctx.fillRect(sx, sy + TILE_SIZE - 2, TILE_SIZE, 2);
+
+                    // Solid white edge lines where highway meets non-highway
+                    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+                    ctx.lineWidth = 2;
+                    if (!aboveHwy) {
+                        ctx.beginPath(); ctx.moveTo(sx, sy + 1); ctx.lineTo(sx + TILE_SIZE, sy + 1); ctx.stroke();
+                    }
+                    if (!belowHwy) {
+                        ctx.beginPath(); ctx.moveTo(sx, sy + TILE_SIZE - 1); ctx.lineTo(sx + TILE_SIZE, sy + TILE_SIZE - 1); ctx.stroke();
+                    }
+                    if (!leftHwy) {
+                        ctx.beginPath(); ctx.moveTo(sx + 1, sy); ctx.lineTo(sx + 1, sy + TILE_SIZE); ctx.stroke();
+                    }
+                    if (!rightHwy) {
+                        ctx.beginPath(); ctx.moveTo(sx + TILE_SIZE - 1, sy); ctx.lineTo(sx + TILE_SIZE - 1, sy + TILE_SIZE); ctx.stroke();
+                    }
                 }
 
                 // Park — more trees, benches, flower patches
@@ -385,71 +391,176 @@ class Renderer {
     }
 
     _drawRoadMarkings(ctx, cam, city, startCol, endCol, startRow, endRow) {
-        // White dashed center lines
-        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+        const T = TILE_SIZE;
+        const hT = T / 2;
+
+        // --- Pass 1: Solid yellow center divider lines (separating opposing lanes) ---
+        ctx.strokeStyle = '#d4a017';
         ctx.lineWidth = 2;
-        ctx.setLineDash([10, 14]);
+        ctx.setLineDash([]);
 
         for (let r = startRow; r < endRow; r++) {
             for (let c = startCol; c < endCol; c++) {
                 const tile = city.tiles[r][c];
-                const sx = c * TILE_SIZE - cam.x;
-                const sy = r * TILE_SIZE - cam.y;
+                if (tile !== TILE.ROAD_H && tile !== TILE.ROAD_V) continue;
+                const sx = c * T - cam.x;
+                const sy = r * T - cam.y;
 
                 if (tile === TILE.ROAD_H) {
+                    // Yellow center line between this row and the paired row
+                    // Top lane of a pair: check if row below is also ROAD_H
+                    const belowIsH = (r + 1 < MAP_ROWS) && city.tiles[r + 1][c] === TILE.ROAD_H;
+                    // Bottom lane of a pair: check if row above is also ROAD_H
+                    const aboveIsH = (r - 1 >= 0) && city.tiles[r - 1][c] === TILE.ROAD_H;
+
+                    if (belowIsH && !aboveIsH) {
+                        // This is the top lane — draw double yellow at bottom edge
+                        ctx.beginPath();
+                        ctx.moveTo(sx, sy + T - 1);
+                        ctx.lineTo(sx + T, sy + T - 1);
+                        ctx.stroke();
+                        ctx.beginPath();
+                        ctx.moveTo(sx, sy + T + 1);
+                        ctx.lineTo(sx + T, sy + T + 1);
+                        ctx.stroke();
+                    }
+                } else if (tile === TILE.ROAD_V) {
+                    // Left lane of a pair: check if col to right is also ROAD_V
+                    const rightIsV = (c + 1 < MAP_COLS) && city.tiles[r][c + 1] === TILE.ROAD_V;
+                    // Right lane of a pair: check if col to left is also ROAD_V
+                    const leftIsV = (c - 1 >= 0) && city.tiles[r][c - 1] === TILE.ROAD_V;
+
+                    if (rightIsV && !leftIsV) {
+                        // This is the left lane — draw double yellow at right edge
+                        ctx.beginPath();
+                        ctx.moveTo(sx + T - 1, sy);
+                        ctx.lineTo(sx + T - 1, sy + T);
+                        ctx.stroke();
+                        ctx.beginPath();
+                        ctx.moveTo(sx + T + 1, sy);
+                        ctx.lineTo(sx + T + 1, sy + T);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        // --- Pass 2: White dashed lane lines (within each lane for guidance) ---
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([12, 18]);
+
+        for (let r = startRow; r < endRow; r++) {
+            for (let c = startCol; c < endCol; c++) {
+                const tile = city.tiles[r][c];
+                if (tile !== TILE.ROAD_H && tile !== TILE.ROAD_V) continue;
+                const sx = c * T - cam.x;
+                const sy = r * T - cam.y;
+
+                if (tile === TILE.ROAD_H) {
+                    // Dashed line through center of each lane tile
                     ctx.beginPath();
-                    ctx.moveTo(sx, sy + TILE_SIZE / 2);
-                    ctx.lineTo(sx + TILE_SIZE, sy + TILE_SIZE / 2);
+                    ctx.moveTo(sx, sy + hT);
+                    ctx.lineTo(sx + T, sy + hT);
                     ctx.stroke();
                 } else if (tile === TILE.ROAD_V) {
                     ctx.beginPath();
-                    ctx.moveTo(sx + TILE_SIZE / 2, sy);
-                    ctx.lineTo(sx + TILE_SIZE / 2, sy + TILE_SIZE);
+                    ctx.moveTo(sx + hT, sy);
+                    ctx.lineTo(sx + hT, sy + T);
                     ctx.stroke();
-                } else if (tile === TILE.ROAD_CROSS) {
-                    // Crosswalk markings at intersections
-                    ctx.setLineDash([]);
-                    ctx.fillStyle = 'rgba(255,255,255,0.35)';
-                    // Horizontal zebra stripes (top and bottom edges)
-                    for (let s = 4; s < TILE_SIZE - 4; s += 8) {
-                        ctx.fillRect(sx + s, sy + 1, 5, 4);
-                        ctx.fillRect(sx + s, sy + TILE_SIZE - 5, 5, 4);
-                    }
-                    // Vertical zebra stripes (left and right edges)
-                    for (let s = 4; s < TILE_SIZE - 4; s += 8) {
-                        ctx.fillRect(sx + 1, sy + s, 4, 5);
-                        ctx.fillRect(sx + TILE_SIZE - 5, sy + s, 4, 5);
-                    }
-                    ctx.setLineDash([10, 14]);
                 }
             }
         }
         ctx.setLineDash([]);
 
-        // Road edge lines (solid white curb lines)
-        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-        ctx.lineWidth = 1.5;
+        // --- Pass 3: White solid curb/edge lines where road meets non-road ---
+        ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+        ctx.lineWidth = 2;
         for (let r = startRow; r < endRow; r++) {
             for (let c = startCol; c < endCol; c++) {
                 const tile = city.tiles[r][c];
-                if (!isRoadTile(tile)) continue;
-                const sx = c * TILE_SIZE - cam.x;
-                const sy = r * TILE_SIZE - cam.y;
+                if (!isRoadTile(tile) || tile === TILE.ROAD_CROSS) continue;
+                const sx = c * T - cam.x;
+                const sy = r * T - cam.y;
 
                 if (r > 0 && !isRoadTile(city.tiles[r - 1][c])) {
-                    ctx.beginPath(); ctx.moveTo(sx, sy + 1); ctx.lineTo(sx + TILE_SIZE, sy + 1); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(sx, sy + 1); ctx.lineTo(sx + T, sy + 1); ctx.stroke();
                 }
                 if (r < MAP_ROWS - 1 && !isRoadTile(city.tiles[r + 1][c])) {
-                    ctx.beginPath(); ctx.moveTo(sx, sy + TILE_SIZE - 1); ctx.lineTo(sx + TILE_SIZE, sy + TILE_SIZE - 1); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(sx, sy + T - 1); ctx.lineTo(sx + T, sy + T - 1); ctx.stroke();
                 }
                 if (c > 0 && !isRoadTile(city.tiles[r][c - 1])) {
-                    ctx.beginPath(); ctx.moveTo(sx + 1, sy); ctx.lineTo(sx + 1, sy + TILE_SIZE); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(sx + 1, sy); ctx.lineTo(sx + 1, sy + T); ctx.stroke();
                 }
                 if (c < MAP_COLS - 1 && !isRoadTile(city.tiles[r][c + 1])) {
-                    ctx.beginPath(); ctx.moveTo(sx + TILE_SIZE - 1, sy); ctx.lineTo(sx + TILE_SIZE - 1, sy + TILE_SIZE); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(sx + T - 1, sy); ctx.lineTo(sx + T - 1, sy + T); ctx.stroke();
                 }
             }
         }
+
+        // --- Pass 4: Large painted road arrows (like real road markings) ---
+        // Convention: Horizontal roads = top row goes RIGHT, bottom row goes LEFT
+        //             Vertical roads = left col goes DOWN, right col goes UP
+        for (let r = startRow; r < endRow; r++) {
+            for (let c = startCol; c < endCol; c++) {
+                const tile = city.tiles[r][c];
+                if (tile !== TILE.ROAD_H && tile !== TILE.ROAD_V) continue;
+                // Draw arrow every 4 tiles so they're not too dense
+                if ((r * 7 + c * 13) % 4 !== 0) continue;
+                // Skip tiles adjacent to intersections
+                const hasAdjacentCross = (
+                    (r > 0 && city.tiles[r-1][c] === TILE.ROAD_CROSS) ||
+                    (r < MAP_ROWS-1 && city.tiles[r+1][c] === TILE.ROAD_CROSS) ||
+                    (c > 0 && city.tiles[r][c-1] === TILE.ROAD_CROSS) ||
+                    (c < MAP_COLS-1 && city.tiles[r][c+1] === TILE.ROAD_CROSS)
+                );
+                if (hasAdjacentCross) continue;
+
+                const sx = c * T - cam.x;
+                const sy = r * T - cam.y;
+
+                ctx.save();
+                ctx.translate(sx + hT, sy + hT);
+
+                // Determine direction
+                if (tile === TILE.ROAD_H) {
+                    const aboveIsH = (r - 1 >= 0) && city.tiles[r - 1][c] === TILE.ROAD_H;
+                    if (aboveIsH) {
+                        ctx.rotate(Math.PI); // bottom lane → LEFT
+                    }
+                    // else top lane → RIGHT
+                } else {
+                    const leftIsV = (c - 1 >= 0) && city.tiles[r][c - 1] === TILE.ROAD_V;
+                    if (leftIsV) {
+                        ctx.rotate(-Math.PI / 2); // right col → UP
+                    } else {
+                        ctx.rotate(Math.PI / 2); // left col → DOWN
+                    }
+                }
+
+                // Draw large chevron arrow pointing RIGHT (rotated by ctx)
+                // Styled like real white road paint — bold, clear, large
+                ctx.fillStyle = 'rgba(255,255,255,0.55)';
+
+                // Arrow shaft (tall narrow rectangle)
+                const shaftW = 18;
+                const shaftH = 5;
+                ctx.fillRect(-shaftW / 2, -shaftH / 2, shaftW * 0.6, shaftH);
+
+                // Arrow head (triangle chevron)
+                ctx.beginPath();
+                ctx.moveTo(shaftW / 2, 0);             // tip
+                ctx.lineTo(shaftW / 2 - 12, -12);      // top-left of head
+                ctx.lineTo(shaftW / 2 - 6, 0);         // inner notch
+                ctx.lineTo(shaftW / 2 - 12, 12);       // bottom-left of head
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.restore();
+            }
+        }
+
+        // Intersections are left clean — no crosswalk markings
     }
 
     _drawBuildings(ctx, cam, city, startCol, endCol, startRow, endRow) {

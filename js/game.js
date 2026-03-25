@@ -109,9 +109,10 @@ class Game {
         // Create GPS system
         this.gps = new GPSRouteSystem(this.city);
 
-        // Create police patrol system
-        this.police = new PolicePatrolSystem(this.city);
-        this.police.setHazardManager(this.hazardMgr);
+        // Police patrol system disabled — was blocking gameplay
+        // this.police = new PolicePatrolSystem(this.city);
+        // this.police.setHazardManager(this.hazardMgr);
+        this.police = null;
 
         // Create radio system
         this.radio = new RadioSystem();
@@ -133,7 +134,6 @@ class Game {
         this._fatigueWarned60 = false;
         this._fatigueWarned85 = false;
         this._pullOverNotified = false;
-        this._impounded = false;
 
         // Gradual refueling state
         this._isRefueling = false;
@@ -281,27 +281,8 @@ class Game {
         // Update app orders
         this.appOrderMgr.update(dt, this.taxi);
 
-        // Update police patrols
-        this.police.update(dt, this.taxi);
-
         // Update radio system
         this.radio.update(dt);
-
-        // Check for police pull-over
-        if (this.police.isActive()) {
-            const pullOverInfo = this.police.getPullOverInfo();
-            if (pullOverInfo && !this._pullOverNotified) {
-                this._pullOverNotified = true;
-                const violationText = pullOverInfo.violation === 'speeding' ?
-                    `Speeding (${Math.floor(this.taxi.currentDisplaySpeed)} km/h)` :
-                    pullOverInfo.violation === 'red_light' ? 'Running a red light' :
-                    'Traffic violation';
-                this.hazardMgr.addNotification(`🚔 PULL OVER! ${violationText}. Fine: ${formatMoney(pullOverInfo.fine)}`, 'danger');
-                this.audio.playFine();
-            }
-        } else {
-            this._pullOverNotified = false;
-        }
 
         // Check interaction with buildings
         this.taxi.nearBuilding = this.taxi.getInteractionBuilding(this.city);
@@ -441,32 +422,6 @@ class Game {
             this._towNotified = false;
         }
 
-        // Debt consequences — impound car if deep in debt
-        if (this.taxi.money < -200 && !this._impounded) {
-            this._impounded = true;
-            this.taxi.speed = 0;
-            // Drop passenger if carrying
-            if (this.taxi.hasPassenger) {
-                if (this.taxi.passenger) this.taxi.passenger.active = false;
-                this.taxi.passenger = null;
-                this.taxi.hasPassenger = false;
-                this.taxi.resetRideStats();
-                if (this.gps) this.gps.clearRoute();
-            }
-            // Teleport to home
-            const home = this.city.getBuildingsOfType(BUILDING_TYPE.HOME)[0];
-            if (home) {
-                const homePos = this.city.getRoadNearBuilding(home);
-                this.taxi.x = homePos.x;
-                this.taxi.y = homePos.y;
-                this.camera.snapTo(this.taxi.x, this.taxi.y);
-            }
-            this.hazardMgr.addNotification('🚫 CAR IMPOUNDED! Debt exceeded $200. Press E at Home to release (penalty applies).', 'danger');
-        }
-        // Prevent driving while impounded
-        if (this._impounded) {
-            this.taxi.speed = 0;
-        }
     }
 
     _checkVehicleCollision(vehicle, label) {
@@ -870,18 +825,6 @@ class Game {
                 }
             }
         } else if (building.type === BUILDING_TYPE.HOME) {
-            // Release impounded car
-            if (this._impounded) {
-                this._impounded = false;
-                this.taxi.money = 0; // Clear debt
-                this.taxi.health = Math.max(this.taxi.health, 30);
-                this.taxi.rating = Math.max(1.0, this.taxi.rating - 0.5);
-                this.taxi.fatigue = 0;
-                this.taxi.day++;
-                this.gameTime = DAY_START_HOUR * 60;
-                this.hazardMgr.addNotification('🔓 Car released. Debt cleared, rating penalty applied. New day begins.', 'warning');
-                return;
-            }
             if (this.taxi.hasPassenger) {
                 this.hazardMgr.addNotification('🚕 Drop off your passenger first!', 'warning');
                 return;
@@ -1457,20 +1400,20 @@ class Game {
         const t = this.taxi;
         const s = saveData.taxi;
         
-        t.money = s.money || 500;
-        t.fuel = s.fuel || t.fuelCapacity;
-        t.health = s.health || t.maxHealth;
-        t.totalKm = s.totalKm || 0;
-        t.totalFares = s.totalFares || 0;
-        t.totalEarnings = s.totalEarnings || 0;
-        t.day = s.day || 1;
-        t.totalDamageEvents = s.totalDamageEvents || 0;
-        t.totalFines = s.totalFines || 0;
-        t.rating = s.rating || RATING_INITIAL;
+        t.money = s.money !== undefined ? s.money : 500;
+        t.fuel = s.fuel !== undefined ? s.fuel : t.fuelCapacity;
+        t.health = s.health !== undefined ? s.health : t.maxHealth;
+        t.totalKm = s.totalKm !== undefined ? s.totalKm : 0;
+        t.totalFares = s.totalFares !== undefined ? s.totalFares : 0;
+        t.totalEarnings = s.totalEarnings !== undefined ? s.totalEarnings : 0;
+        t.day = s.day !== undefined ? s.day : 1;
+        t.totalDamageEvents = s.totalDamageEvents !== undefined ? s.totalDamageEvents : 0;
+        t.totalFines = s.totalFines !== undefined ? s.totalFines : 0;
+        t.rating = s.rating !== undefined ? s.rating : RATING_INITIAL;
         t.ratingHistory = s.ratingHistory || [];
-        t.tireHealth = s.tireHealth || TIRE_MAX_HEALTH;
-        t.fatigue = s.fatigue || 0;
-        t.damageVisual = s.damageVisual || 0;
+        t.tireHealth = s.tireHealth !== undefined ? s.tireHealth : TIRE_MAX_HEALTH;
+        t.fatigue = s.fatigue !== undefined ? s.fatigue : 0;
+        t.damageVisual = s.damageVisual !== undefined ? s.damageVisual : 0;
         
         if (s.carModelId) {
             t.carModelId = s.carModelId;
