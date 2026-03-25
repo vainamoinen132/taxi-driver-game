@@ -205,23 +205,39 @@ class City {
 
         const usedBlocks = new Set();
 
-        // Place essential buildings in random blocks
+        // Place essential buildings using road-adjacent placement for reliability
         for (const type of essentialTypes) {
-            let attempts = 0;
-            while (attempts < 100) {
-                const blockIdx = this.rng.randInt(0, blocks.length - 1);
-                if (usedBlocks.has(blockIdx)) { attempts++; continue; }
-                const block = blocks[blockIdx];
-                // Large buildings for stadium/concert hall
-                let size = (type === BUILDING_TYPE.STADIUM || type === BUILDING_TYPE.CONCERT_HALL)
-                    ? { w: 4, h: 4 } : { w: this.rng.randInt(2, 3), h: this.rng.randInt(2, 3) };
-                const pos = this._findBuildingSpot(block, size.w, size.h);
-                if (pos) {
-                    this._placeBuildingOnMap(pos.col, pos.row, size.w, size.h, type);
-                    usedBlocks.add(blockIdx);
-                    break;
+            const isLarge = (type === BUILDING_TYPE.STADIUM || type === BUILDING_TYPE.CONCERT_HALL);
+            const size = isLarge
+                ? { w: 4, h: 4 } : { w: this.rng.randInt(2, 3), h: this.rng.randInt(2, 3) };
+
+            // Try road-adjacent placement first (guaranteed reachable)
+            const pos = this._findRoadAdjacentSpot(size.w, size.h);
+            if (pos) {
+                this._placeBuildingOnMap(pos.col, pos.row, size.w, size.h, type);
+                // Mark containing block as used
+                for (let bi = 0; bi < blocks.length; bi++) {
+                    const b = blocks[bi];
+                    if (pos.col >= b.minCol && pos.col <= b.maxCol && pos.row >= b.minRow && pos.row <= b.maxRow) {
+                        usedBlocks.add(bi);
+                        break;
+                    }
                 }
-                attempts++;
+            } else {
+                // Fallback: try random block placement
+                let attempts = 0;
+                while (attempts < 100) {
+                    const blockIdx = this.rng.randInt(0, blocks.length - 1);
+                    if (usedBlocks.has(blockIdx)) { attempts++; continue; }
+                    const block = blocks[blockIdx];
+                    const fallbackPos = this._findBuildingSpot(block, size.w, size.h);
+                    if (fallbackPos) {
+                        this._placeBuildingOnMap(fallbackPos.col, fallbackPos.row, size.w, size.h, type);
+                        usedBlocks.add(blockIdx);
+                        break;
+                    }
+                    attempts++;
+                }
             }
         }
 
@@ -301,6 +317,68 @@ class City {
             }
         }
         return blocks;
+    }
+
+    _findRoadAdjacentSpot(w, h) {
+        // Find a spot where the building is placed with exactly 1 tile of gap
+        // between it and a road. Layout: ROAD | SIDEWALK(parking) | BUILDING
+        // This guarantees the building is always reachable from the road.
+
+        // Collect candidate positions: scan all sidewalk tiles,
+        // then try placing the building on the non-road side of each sidewalk tile.
+        const candidates = [];
+        for (let r = 0; r < MAP_ROWS; r++) {
+            for (let c = 0; c < MAP_COLS; c++) {
+                if (this.tiles[r][c] !== TILE.SIDEWALK) continue;
+                // Check which direction the road is on
+                // Place building on the opposite side of the sidewalk from the road
+                const dirs = [
+                    { dr: -1, dc: 0, bdr: 1 },   // road above sidewalk → building below
+                    { dr: 1, dc: 0, bdr: -1 },    // road below → building above
+                    { dr: 0, dc: -1, bdc: 1 },    // road left → building right
+                    { dr: 0, dc: 1, bdc: -1 },    // road right → building left
+                ];
+                for (const d of dirs) {
+                    const rr = r + d.dr, rc = c + d.dc;
+                    if (rr < 0 || rr >= MAP_ROWS || rc < 0 || rc >= MAP_COLS) continue;
+                    if (!isRoadTile(this.tiles[rr][rc])) continue;
+                    // Road is at (rr,rc), sidewalk at (r,c)
+                    // Place building starting from the opposite side
+                    let bRow, bCol;
+                    if (d.dr !== 0) {
+                        // Road is above/below, building goes vertically away from road
+                        bRow = d.bdr > 0 ? r + 1 : r - h;
+                        bCol = c - Math.floor(w / 2);
+                    } else {
+                        bRow = r - Math.floor(h / 2);
+                        bCol = d.bdc > 0 ? c + 1 : c - w;
+                    }
+                    candidates.push({ col: bCol, row: bRow, sCol: c, sRow: r });
+                }
+            }
+        }
+
+        // Shuffle candidates for variety
+        for (let i = candidates.length - 1; i > 0; i--) {
+            const j = this.rng.randInt(0, i);
+            [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+        }
+
+        // Try each candidate
+        for (const cand of candidates) {
+            const { col, row } = cand;
+            if (col < 0 || row < 0 || col + w > MAP_COLS || row + h > MAP_ROWS) continue;
+            let valid = true;
+            for (let r = row; r < row + h && valid; r++) {
+                for (let c = col; c < col + w && valid; c++) {
+                    if (this.tiles[r][c] !== TILE.GRASS && this.tiles[r][c] !== TILE.SIDEWALK) {
+                        valid = false;
+                    }
+                }
+            }
+            if (valid) return { col, row };
+        }
+        return null;
     }
 
     _findBuildingSpot(block, w, h) {
