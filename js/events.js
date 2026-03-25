@@ -190,6 +190,12 @@ class EventManager {
         this.passengerManager.eventMultiplier = 2;
         this.eventHistory.push(event.name);
 
+        // Push a one-time notification so the player knows where to go
+        const targetBuilding = buildings[0];
+        const districtName = targetBuilding.district || 'the city';
+        const directionHint = targetBuilding.name || event.buildingType.replace(/_/g, ' ');
+        this._lastEventNotification = `${event.icon} ${event.name}! Head to ${directionHint} in ${districtName} for surge fares!`;
+
         // Apply road effects based on special type
         if (event.special) {
             const building = buildings[0];
@@ -215,6 +221,13 @@ class EventManager {
 
     getActiveEventMessage() {
         return this.activeEvent ? this.activeEvent.message : null;
+    }
+
+    // Returns and clears the one-time notification for a new event
+    popEventNotification() {
+        const msg = this._lastEventNotification;
+        this._lastEventNotification = null;
+        return msg;
     }
 
     getActiveEventBuilding() {

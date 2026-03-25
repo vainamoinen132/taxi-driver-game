@@ -24,12 +24,12 @@ class City {
         this.horizontalRoads = [];
         this.verticalRoads = [];
 
-        // Major horizontal roads
-        for (let r = 4; r < MAP_ROWS - 3; r += this.rng.randInt(5, 7)) {
+        // Major horizontal roads (spaced 6-9 tiles apart for bigger city blocks)
+        for (let r = 5; r < MAP_ROWS - 4; r += this.rng.randInt(6, 9)) {
             this.horizontalRoads.push(r);
         }
         // Major vertical roads
-        for (let c = 4; c < MAP_COLS - 3; c += this.rng.randInt(5, 7)) {
+        for (let c = 5; c < MAP_COLS - 4; c += this.rng.randInt(6, 9)) {
             this.verticalRoads.push(c);
         }
 
@@ -133,27 +133,28 @@ class City {
     }
 
     _addHighway() {
-        // Build a 2-lane highway ring around the outer edge of the map
-        const margin = 2;
-        // Top edge
-        for (let c = margin; c < MAP_COLS - margin; c++) {
-            this.tiles[margin][c] = TILE.HIGHWAY;
-            this.tiles[margin + 1][c] = TILE.HIGHWAY;
+        // Fill the outer edge of the map with parks and greenery instead of
+        // a full highway ring. Keep map border areas as parks/trees/grass
+        // so the city feels bounded by nature.
+        // The outermost 4 rows/cols become a green belt.
+        const belt = 4;
+        for (let r = 0; r < MAP_ROWS; r++) {
+            for (let c = 0; c < MAP_COLS; c++) {
+                const isEdge = r < belt || r >= MAP_ROWS - belt || c < belt || c >= MAP_COLS - belt;
+                if (isEdge && this.tiles[r][c] !== TILE.BUILDING) {
+                    // Make it park or grass
+                    this.tiles[r][c] = (this.rng.next() < 0.4) ? TILE.PARK : TILE.GRASS;
+                }
+            }
         }
-        // Bottom edge
-        for (let c = margin; c < MAP_COLS - margin; c++) {
-            this.tiles[MAP_ROWS - margin - 1][c] = TILE.HIGHWAY;
-            this.tiles[MAP_ROWS - margin - 2][c] = TILE.HIGHWAY;
-        }
-        // Left edge
-        for (let r = margin; r < MAP_ROWS - margin; r++) {
-            this.tiles[r][margin] = TILE.HIGHWAY;
-            this.tiles[r][margin + 1] = TILE.HIGHWAY;
-        }
-        // Right edge
-        for (let r = margin; r < MAP_ROWS - margin; r++) {
-            this.tiles[r][MAP_COLS - margin - 1] = TILE.HIGHWAY;
-            this.tiles[r][MAP_COLS - margin - 2] = TILE.HIGHWAY;
+
+        // Add one intercity highway exit stub on the right edge (for future use)
+        const exitRow = this.horizontalRoads.length > 1
+            ? this.horizontalRoads[Math.floor(this.horizontalRoads.length / 2)]
+            : Math.floor(MAP_ROWS / 2);
+        for (let c = MAP_COLS - belt; c < MAP_COLS; c++) {
+            this.tiles[exitRow][c] = TILE.HIGHWAY;
+            if (exitRow + 1 < MAP_ROWS) this.tiles[exitRow + 1][c] = TILE.HIGHWAY;
         }
     }
 
@@ -303,19 +304,14 @@ class City {
     }
 
     _findBuildingSpot(block, w, h) {
-        // Find a spot within the block interior — only on GRASS tiles, with 2-tile margin from block edges
-        // to prevent buildings from touching sidewalks/roads
-        const margin = 2;
-        const minCol = block.minCol + margin;
-        const maxCol = block.maxCol - w - margin + 1;
-        const minRow = block.minRow + margin;
-        const maxRow = block.maxRow - h - margin + 1;
-        if (minCol > maxCol || minRow > maxRow) return null;
-
-        for (let attempt = 0; attempt < 30; attempt++) {
-            const col = this.rng.randInt(minCol, maxCol);
-            const row = this.rng.randInt(minRow, maxRow);
+        // Find a spot within the block interior on GRASS tiles only.
+        // Sidewalks form a natural buffer between buildings and roads,
+        // so we just need to ensure we place on grass (not sidewalk/road).
+        for (let attempt = 0; attempt < 40; attempt++) {
+            const col = this.rng.randInt(block.minCol, block.maxCol - w + 1);
+            const row = this.rng.randInt(block.minRow, block.maxRow - h + 1);
             if (col + w > MAP_COLS || row + h > MAP_ROWS) continue;
+            if (col < 0 || row < 0) continue;
             let valid = true;
             for (let r = row; r < row + h && valid; r++) {
                 for (let c = col; c < col + w && valid; c++) {

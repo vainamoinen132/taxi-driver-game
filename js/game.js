@@ -275,6 +275,23 @@ class Game {
         // Update events
         this.eventMgr.update(dt, this.gameTime);
 
+        // Show event notification popup when a new event triggers
+        const eventNotif = this.eventMgr.popEventNotification();
+        if (eventNotif) {
+            this.hazardMgr.addNotification(eventNotif, 'info');
+            // Auto-navigate to event building if no passenger
+            if (!this.taxi.hasPassenger) {
+                const eventBuilding = this.eventMgr.getActiveEventBuilding();
+                if (eventBuilding) {
+                    this.taxi.navTarget = {
+                        x: eventBuilding.px,
+                        y: eventBuilding.py,
+                        label: eventBuilding.name || 'Event',
+                    };
+                }
+            }
+        }
+
         // Update hazards
         this.hazardMgr.update(dt, this.taxi);
 

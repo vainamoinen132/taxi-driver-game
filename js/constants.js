@@ -290,11 +290,13 @@ const MAX_PASSENGERS = 30;
 const MAX_AI_TAXIS = 3;
 const MAX_NPC_CARS = 10;
 
-// Fatigue
+// Fatigue — calibrated for 12-16 game hour driving day
+// At TIME_SCALE=2: 16 game hrs = 480 real seconds of driving → rate = 100/480 ≈ 0.208
+// Tired at ~12 game hours (fatigue 75%), exhausted at 16 hours (100%)
 const MAX_FATIGUE = 100;
-const FATIGUE_RATE = 0.03; // per real second — much slower
-const FATIGUE_REST_RATE = 15; // recovery per real second at home — faster rest
-const FATIGUE_PENALTY_THRESHOLD = 85; // above this, driving gets harder — more forgiving
+const FATIGUE_RATE = 0.208; // per real second while driving
+const FATIGUE_REST_RATE = 6; // recovery per real second at home (~17s full rest)
+const FATIGUE_PENALTY_THRESHOLD = 75; // driving gets harder after ~12 game hours
 
 // Event durations (game minutes)
 const EVENT_DURATION = 60;
