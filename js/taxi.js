@@ -35,6 +35,16 @@ class Taxi {
         this.totalDamageEvents = 0;
         this.totalFines = 0;
 
+        // Per-day earnings tracking
+        this.dayEarnings = [];  // Array of { day, earnings, fares, km, fines, topFare }
+        this.currentDayEarnings = 0;
+        this.currentDayFares = 0;
+        this.currentDayKm = 0;
+        this.currentDayFines = 0;
+        this.currentDayTopFare = 0;
+        this.earningsPerHour = 0;
+        this._earningsTrackStart = Date.now() / 1000;
+
         // Passenger
         this.passenger = null;
         this.hasPassenger = false;
@@ -257,6 +267,11 @@ class Taxi {
             this.speed *= 0.96;
         }
 
+        // Slow tile penalty (construction, festival zones)
+        if (city.isSlowAt && city.isSlowAt(this.x, this.y)) {
+            this.speed *= 0.93;
+        }
+
         // Update visual damage level
         const healthPct = this.health / this.maxHealth;
         if (healthPct > 0.7) this.damageVisual = 0;
@@ -457,6 +472,30 @@ class Taxi {
         this.rideDistance = 0;
         this.rideSpeedSum = 0;
         this.rideSpeedSamples = 0;
+    }
+
+    recordDayEnd() {
+        this.dayEarnings.push({
+            day: this.day,
+            earnings: this.currentDayEarnings,
+            fares: this.currentDayFares,
+            km: this.currentDayKm,
+            fines: this.currentDayFines,
+            topFare: this.currentDayTopFare
+        });
+        this.currentDayEarnings = 0;
+        this.currentDayFares = 0;
+        this.currentDayKm = 0;
+        this.currentDayFines = 0;
+        this.currentDayTopFare = 0;
+        this._earningsTrackStart = Date.now() / 1000;
+    }
+
+    updateEarningsPerHour() {
+        const elapsed = (Date.now() / 1000) - this._earningsTrackStart;
+        if (elapsed > 10) { // at least 10 seconds
+            this.earningsPerHour = (this.currentDayEarnings / elapsed) * 3600;
+        }
     }
 
     getBounds() {

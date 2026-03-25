@@ -3,11 +3,15 @@
 // ============================================================
 
 class City {
-    constructor() {
+    constructor(seed) {
         this.tiles = [];
         this.buildings = [];
         this.roadTiles = [];
+        this.seed = seed || Math.floor(Math.random() * 999999);
+        this.rng = new SeededRandom(this.seed);
         this.generate();
+        this.blockedTiles = new Set();
+        this.slowTiles = new Set();
     }
 
     generate() {
@@ -21,11 +25,11 @@ class City {
         this.verticalRoads = [];
 
         // Major horizontal roads
-        for (let r = 4; r < MAP_ROWS - 3; r += randInt(5, 7)) {
+        for (let r = 4; r < MAP_ROWS - 3; r += this.rng.randInt(5, 7)) {
             this.horizontalRoads.push(r);
         }
         // Major vertical roads
-        for (let c = 4; c < MAP_COLS - 3; c += randInt(5, 7)) {
+        for (let c = 4; c < MAP_COLS - 3; c += this.rng.randInt(5, 7)) {
             this.verticalRoads.push(c);
         }
 
@@ -101,14 +105,14 @@ class City {
 
     _addWaterFeature() {
         // Place 1-2 small ponds in grass areas for visual variety
-        const pondCount = randInt(1, 2);
+        const pondCount = this.rng.randInt(1, 2);
         for (let p = 0; p < pondCount; p++) {
-            const pw = randInt(2, 4);
-            const ph = randInt(2, 3);
+            const pw = this.rng.randInt(2, 4);
+            const ph = this.rng.randInt(2, 3);
             let placed = false;
             for (let attempt = 0; attempt < 80 && !placed; attempt++) {
-                const sr = randInt(5, MAP_ROWS - ph - 5);
-                const sc = randInt(5, MAP_COLS - pw - 5);
+                const sr = this.rng.randInt(5, MAP_ROWS - ph - 5);
+                const sc = this.rng.randInt(5, MAP_COLS - pw - 5);
                 // Check all tiles are grass
                 let ok = true;
                 for (let dr = 0; dr < ph && ok; dr++) {
@@ -177,15 +181,24 @@ class City {
         const essentialTypes = [
             BUILDING_TYPE.HOME,
             BUILDING_TYPE.STADIUM,
+            BUILDING_TYPE.CONCERT_HALL,
+            BUILDING_TYPE.HOSPITAL,
             BUILDING_TYPE.HOSPITAL,
             BUILDING_TYPE.GAS_STATION,
             BUILDING_TYPE.GAS_STATION,
             BUILDING_TYPE.GAS_STATION,
+            BUILDING_TYPE.GAS_STATION,
+            BUILDING_TYPE.GAS_STATION,
+            BUILDING_TYPE.MECHANIC,
             BUILDING_TYPE.MECHANIC,
             BUILDING_TYPE.MECHANIC,
             BUILDING_TYPE.POLICE,
+            BUILDING_TYPE.POLICE,
+            BUILDING_TYPE.SCHOOL,
             BUILDING_TYPE.SCHOOL,
             BUILDING_TYPE.MALL,
+            BUILDING_TYPE.MALL,
+            BUILDING_TYPE.BANK,
             BUILDING_TYPE.BANK,
         ];
 
@@ -195,12 +208,12 @@ class City {
         for (const type of essentialTypes) {
             let attempts = 0;
             while (attempts < 100) {
-                const blockIdx = randInt(0, blocks.length - 1);
+                const blockIdx = this.rng.randInt(0, blocks.length - 1);
                 if (usedBlocks.has(blockIdx)) { attempts++; continue; }
                 const block = blocks[blockIdx];
                 // Large buildings for stadium/concert hall
                 let size = (type === BUILDING_TYPE.STADIUM || type === BUILDING_TYPE.CONCERT_HALL)
-                    ? { w: 4, h: 4 } : { w: randInt(2, 3), h: randInt(2, 3) };
+                    ? { w: 4, h: 4 } : { w: this.rng.randInt(2, 3), h: this.rng.randInt(2, 3) };
                 const pos = this._findBuildingSpot(block, size.w, size.h);
                 if (pos) {
                     this._placeBuildingOnMap(pos.col, pos.row, size.w, size.h, type);
@@ -292,8 +305,8 @@ class City {
     _findBuildingSpot(block, w, h) {
         // Find a spot within the block interior (not on sidewalk edges)
         for (let attempt = 0; attempt < 30; attempt++) {
-            const col = randInt(block.minCol + 1, block.maxCol - w);
-            const row = randInt(block.minRow + 1, block.maxRow - h);
+            const col = this.rng.randInt(block.minCol + 1, block.maxCol - w);
+            const row = this.rng.randInt(block.minRow + 1, block.maxRow - h);
             if (col < 0 || row < 0) continue;
             if (col + w > MAP_COLS || row + h > MAP_ROWS) continue;
             let valid = true;
@@ -408,11 +421,11 @@ class City {
         if (bw < 3 || bh < 3) return;
 
         // Place 1-3 buildings per block
-        const count = randInt(1, Math.min(3, Math.floor(bw * bh / 8)));
+        const count = this.rng.randInt(1, Math.min(3, Math.floor(bw * bh / 8)));
         for (let i = 0; i < count; i++) {
-            const w = randInt(2, Math.min(4, bw - 2));
-            const h = randInt(2, Math.min(3, bh - 2));
-            const type = randChoice(zone.types);
+            const w = this.rng.randInt(2, Math.min(4, bw - 2));
+            const h = this.rng.randInt(2, Math.min(3, bh - 2));
+            const type = this.rng.randChoice(zone.types);
             const pos = this._findBuildingSpot(block, w, h);
             if (pos) {
                 this._placeBuildingOnMap(pos.col, pos.row, w, h, type);
@@ -426,10 +439,10 @@ class City {
         const maxParks = Math.max(2, Math.floor(MAP_COLS * MAP_ROWS / 400));
         for (let r = 0; r < MAP_ROWS && parkCount < maxParks; r++) {
             for (let c = 0; c < MAP_COLS && parkCount < maxParks; c++) {
-                if (this.tiles[r][c] === TILE.GRASS && Math.random() < 0.005) {
+                if (this.tiles[r][c] === TILE.GRASS && this.rng.next() < 0.005) {
                     // Make a small park
-                    const pw = randInt(2, 4);
-                    const ph = randInt(2, 3);
+                    const pw = this.rng.randInt(2, 4);
+                    const ph = this.rng.randInt(2, 3);
                     let valid = true;
                     for (let pr = r; pr < r + ph && pr < MAP_ROWS && valid; pr++) {
                         for (let pc = c; pc < c + pw && pc < MAP_COLS && valid; pc++) {
@@ -590,7 +603,23 @@ class City {
     isSolidAt(x, y) {
         const { col, row } = pixelToTile(x, y);
         if (row < 0 || row >= MAP_ROWS || col < 0 || col >= MAP_COLS) return true;
+        if (this.blockedTiles.has(`${row},${col}`)) return true;
         return this.tiles[row][col] === TILE.BUILDING || this.tiles[row][col] === TILE.WATER;
+    }
+
+    blockRoadTiles(tiles) { tiles.forEach(t => this.blockedTiles.add(`${t.row},${t.col}`)); }
+    unblockRoadTiles(tiles) { tiles.forEach(t => this.blockedTiles.delete(`${t.row},${t.col}`)); }
+    addSlowTiles(tiles) { tiles.forEach(t => this.slowTiles.add(`${t.row},${t.col}`)); }
+    removeSlowTiles(tiles) { tiles.forEach(t => this.slowTiles.delete(`${t.row},${t.col}`)); }
+
+    isBlockedAt(x, y) {
+        const { col, row } = pixelToTile(x, y);
+        return this.blockedTiles.has(`${row},${col}`);
+    }
+
+    isSlowAt(x, y) {
+        const { col, row } = pixelToTile(x, y);
+        return this.slowTiles.has(`${row},${col}`);
     }
 
     getBuildingAt(x, y) {
@@ -636,13 +665,13 @@ class City {
             'financial': ['Financial', 'Commerce', 'Business'],
         };
         
-        const baseName = randChoice(namePool);
-        
+        const baseName = this.rng.randChoice(namePool);
+
         // 30% chance to add district prefix for more variety
-        if (Math.random() < 0.3 && district) {
+        if (this.rng.next() < 0.3 && district) {
             const prefixes = districtNames[district] || [];
             if (prefixes.length > 0) {
-                const prefix = randChoice(prefixes);
+                const prefix = this.rng.randChoice(prefixes);
                 return `${prefix} ${baseName}`;
             }
         }

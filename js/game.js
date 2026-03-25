@@ -42,8 +42,10 @@ class Game {
         this.character = CHARACTERS.find(c => c.id === this.characterId) || CHARACTERS[0];
         this.saveSystem = new SaveLoadSystem();
 
-        // Generate city
-        this.city = new City();
+        // Generate city (use saved seed if loading)
+        const citySeed = loadData ? loadData.citySeed : undefined;
+        this.city = new City(citySeed);
+        this.citySeed = this.city.seed;
 
         // Create renderer
         this.renderer = new Renderer(this.canvas, this.minimapCanvas);
@@ -77,6 +79,14 @@ class Game {
             this.aiTaxis.push(new AiTaxi(pos.x, pos.y, this.city));
         }
 
+        // Rivalry tracking
+        this._rivalryData = {};
+        for (const ai of this.aiTaxis) {
+            if (!this._rivalryData[ai.companyName]) {
+                this._rivalryData[ai.companyName] = { earnings: 0, fares: 0, color: ai.companyColor };
+            }
+        }
+
         // Create NPC traffic
         this.trafficMgr = new TrafficManager(this.city);
 
@@ -101,6 +111,7 @@ class Game {
 
         // Create police patrol system
         this.police = new PolicePatrolSystem(this.city);
+        this.police.setHazardManager(this.hazardMgr);
 
         // Create radio system
         this.radio = new RadioSystem();
@@ -122,6 +133,7 @@ class Game {
         this._fatigueWarned60 = false;
         this._fatigueWarned85 = false;
         this._pullOverNotified = false;
+        this._impounded = false;
 
         // Gradual refueling state
         this._isRefueling = false;
@@ -201,6 +213,7 @@ class Game {
         const prevKm = this.taxi.totalKm;
         this.taxi.update(dt, this.city);
         const kmDriven = this.taxi.totalKm - prevKm;
+        if (kmDriven > 0) this.taxi.currentDayKm += kmDriven;
 
         // Update challenges - distance driven
         if (this.challengeMgr && kmDriven > 0) {
@@ -225,6 +238,14 @@ class Game {
         // Update AI taxis
         for (const ai of this.aiTaxis) {
             ai.update(dt, this.passengerMgr.passengers);
+        }
+
+        // Sync AI rivalry data
+        for (const ai of this.aiTaxis) {
+            if (this._rivalryData[ai.companyName]) {
+                this._rivalryData[ai.companyName].earnings = ai.totalEarnings;
+                this._rivalryData[ai.companyName].fares = ai.totalFares;
+            }
         }
 
         // Update NPC traffic
@@ -271,8 +292,9 @@ class Game {
             const pullOverInfo = this.police.getPullOverInfo();
             if (pullOverInfo && !this._pullOverNotified) {
                 this._pullOverNotified = true;
-                const violationText = pullOverInfo.violation === 'speeding' ? 
-                    `Speeding (${Math.floor(this.taxi.currentDisplaySpeed)} km/h)` : 
+                const violationText = pullOverInfo.violation === 'speeding' ?
+                    `Speeding (${Math.floor(this.taxi.currentDisplaySpeed)} km/h)` :
+                    pullOverInfo.violation === 'red_light' ? 'Running a red light' :
                     'Traffic violation';
                 this.hazardMgr.addNotification(`🚔 PULL OVER! ${violationText}. Fine: ${formatMoney(pullOverInfo.fine)}`, 'danger');
                 this.audio.playFine();
@@ -396,6 +418,9 @@ class Game {
         // Camera follow
         this.camera.follow(this.taxi.x, this.taxi.y);
 
+        // Update earnings per hour tracking
+        this.taxi.updateEarningsPerHour();
+
         // Update HUD
         this.hud.update(this.taxi, this.gameTime, this.hazardMgr, this.eventMgr, this.appOrderMgr, this.weather, this.radio);
 
@@ -414,6 +439,33 @@ class Game {
             }
         } else {
             this._towNotified = false;
+        }
+
+        // Debt consequences — impound car if deep in debt
+        if (this.taxi.money < -200 && !this._impounded) {
+            this._impounded = true;
+            this.taxi.speed = 0;
+            // Drop passenger if carrying
+            if (this.taxi.hasPassenger) {
+                if (this.taxi.passenger) this.taxi.passenger.active = false;
+                this.taxi.passenger = null;
+                this.taxi.hasPassenger = false;
+                this.taxi.resetRideStats();
+                if (this.gps) this.gps.clearRoute();
+            }
+            // Teleport to home
+            const home = this.city.getBuildingsOfType(BUILDING_TYPE.HOME)[0];
+            if (home) {
+                const homePos = this.city.getRoadNearBuilding(home);
+                this.taxi.x = homePos.x;
+                this.taxi.y = homePos.y;
+                this.camera.snapTo(this.taxi.x, this.taxi.y);
+            }
+            this.hazardMgr.addNotification('🚫 CAR IMPOUNDED! Debt exceeded $200. Press E at Home to release (penalty applies).', 'danger');
+        }
+        // Prevent driving while impounded
+        if (this._impounded) {
+            this.taxi.speed = 0;
         }
     }
 
@@ -446,6 +498,7 @@ class Game {
                 if (Math.abs(this.taxi.speed) > 15 && this.taxi.invulnTimer <= 0) {
                     this.taxi.money -= PEDESTRIAN_HIT_FINE;
                     this.taxi.totalFines++;
+                    this.taxi.currentDayFines++;
                     this.taxi.invulnTimer = 2.0;
                     this.taxi.speed *= 0.3;
                     this.hazardMgr.addNotification(`🚶 Hit a pedestrian! Fine: ${formatMoney(PEDESTRIAN_HIT_FINE)}`, 'danger');
@@ -728,6 +781,11 @@ class Game {
             this.taxi.money += total;
             this.taxi.totalEarnings += total;
 
+            // Track daily earnings
+            this.taxi.currentDayEarnings += total;
+            this.taxi.currentDayFares++;
+            if (total > this.taxi.currentDayTopFare) this.taxi.currentDayTopFare = total;
+
             // Update challenges - earnings
             if (this.challengeMgr) {
                 this.challengeMgr.updateProgress('earn_before_time', total, this);
@@ -812,6 +870,18 @@ class Game {
                 }
             }
         } else if (building.type === BUILDING_TYPE.HOME) {
+            // Release impounded car
+            if (this._impounded) {
+                this._impounded = false;
+                this.taxi.money = 0; // Clear debt
+                this.taxi.health = Math.max(this.taxi.health, 30);
+                this.taxi.rating = Math.max(1.0, this.taxi.rating - 0.5);
+                this.taxi.fatigue = 0;
+                this.taxi.day++;
+                this.gameTime = DAY_START_HOUR * 60;
+                this.hazardMgr.addNotification('🔓 Car released. Debt cleared, rating penalty applied. New day begins.', 'warning');
+                return;
+            }
             if (this.taxi.hasPassenger) {
                 this.hazardMgr.addNotification('🚕 Drop off your passenger first!', 'warning');
                 return;
@@ -1023,7 +1093,22 @@ class Game {
             ['Damage Events', this.taxi.totalDamageEvents],
             ['Fines Received', this.taxi.totalFines],
             ['Events Witnessed', this.eventMgr.eventHistory.length],
+            ['', ''],
+            ['--- Today ---', ''],
+            ['Current Day Earnings', formatMoney(this.taxi.currentDayEarnings || 0)],
+            ['Earnings/Hour', formatMoney(this.taxi.earningsPerHour || 0) + '/hr'],
+            ['Best Fare Today', formatMoney(this.taxi.currentDayTopFare || 0)],
+            ['Avg Earnings/Day', this.taxi.day > 1 ? formatMoney(this.taxi.totalEarnings / (this.taxi.day - 1)) : 'N/A'],
+            ['City Seed', this.citySeed || 'N/A'],
         ];
+
+        stats.push(['', '']); // spacer
+        stats.push(['--- Rival Companies ---', '']);
+        if (this._rivalryData) {
+            for (const [name, data] of Object.entries(this._rivalryData)) {
+                stats.push([`\uD83D\uDE95 ${name}`, `${formatMoney(data.earnings)} (${data.fares} fares)`]);
+            }
+        }
 
         content.innerHTML = stats.map(([label, val]) =>
             `<div class="stat-row"><span>${label}</span><span>${val}</span></div>`
@@ -1164,12 +1249,18 @@ class Game {
                 <h2>🏡 Home — End of Day ${this.taxi.day}</h2>
                 <div class="home-grid">
                     <div class="home-section">
-                        <h3>📊 Day Summary</h3>
+                        <h3>📊 Day ${this.taxi.day} Summary</h3>
                         <div class="stat-row"><span>Fares completed</span><span>${dayFares}</span></div>
                         <div class="stat-row"><span>Earnings</span><span style="color:#2ecc71">${formatMoney(dayEarnings)}</span></div>
                         <div class="stat-row"><span>Daily expenses</span><span style="color:#e74c3c">-${formatMoney(expenses)}</span></div>
+                        <div class="stat-row"><span>Net profit</span><span style="color:${dayEarnings - expenses > 0 ? '#2ecc71' : '#e74c3c'}">${formatMoney(dayEarnings - expenses)}</span></div>
                         <div class="stat-row"><span>Balance</span><span style="color:#f5c518">${formatMoney(this.taxi.money)}</span></div>
+                        <div class="stat-row"><span>Distance driven</span><span>${(this.taxi.currentDayKm || 0).toFixed(1)} km</span></div>
+                        <div class="stat-row"><span>$/hour rate</span><span style="color:#3498db">${formatMoney(this.taxi.earningsPerHour || 0)}/hr</span></div>
+                        <div class="stat-row"><span>Best single fare</span><span style="color:#f39c12">${formatMoney(this.taxi.currentDayTopFare || 0)}</span></div>
+                        <div class="stat-row"><span>Fines today</span><span style="color:#e74c3c">${this.taxi.currentDayFines || 0}</span></div>
                         <div class="stat-row"><span>Rating</span><span>${'⭐'.repeat(Math.round(this.taxi.rating))}${'☆'.repeat(5 - Math.round(this.taxi.rating))} (${this.taxi.rating.toFixed(1)})</span></div>
+                        ${this._renderEarningsHistory()}
                     </div>
                     <div class="home-section">
                         <h3>📚 Skills & Training</h3>
@@ -1241,6 +1332,10 @@ class Game {
 
         // Next day button
         document.getElementById('home-nextday-btn').addEventListener('click', () => {
+            // Record day-end stats before advancing
+            if (!this.taxi.dayEarnings.find(d => d.day === this.taxi.day)) {
+                this.taxi.recordDayEnd();
+            }
             this.taxi.fatigue = 0;
             this.taxi.isResting = false;
             this.taxi.day++;
@@ -1304,6 +1399,26 @@ class Game {
         }
     }
 
+    _renderEarningsHistory() {
+        if (!this.taxi.dayEarnings || this.taxi.dayEarnings.length === 0) return '';
+
+        let html = '<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.1);padding-top:8px">';
+        html += '<div style="color:#aaa;font-size:0.8rem;margin-bottom:4px">📈 Previous Days</div>';
+
+        // Show last 5 days
+        const recent = this.taxi.dayEarnings.slice(-5).reverse();
+        for (const day of recent) {
+            const profit = day.earnings - (DAILY_INSURANCE + DAILY_PARKING_FEE + DAILY_PHONE_PLAN);
+            const color = profit > 0 ? '#2ecc71' : '#e74c3c';
+            html += `<div class="stat-row" style="font-size:0.82rem">
+                <span>Day ${day.day}</span>
+                <span style="color:${color}">${formatMoney(day.earnings)} · ${day.fares} fares · ${day.km.toFixed(1)}km</span>
+            </div>`;
+        }
+        html += '</div>';
+        return html;
+    }
+
     _applyCharacterBonuses() {
         if (!this.character || !this.taxi) return;
         
@@ -1331,7 +1446,8 @@ class Game {
         return this.saveSystem.save(slotIndex, {
             characterId: this.characterId,
             taxi: this.taxi,
-            gameTime: this.gameTime
+            gameTime: this.gameTime,
+            citySeed: this.citySeed
         });
     }
 
@@ -1362,7 +1478,17 @@ class Game {
         }
         if (s.ownedCars) t.ownedCars = s.ownedCars;
         if (s.upgradeLevels) t.upgradeLevels = s.upgradeLevels;
-        
+        if (s.skills) t.skills = s.skills;
+
+        // Load earnings tracking data
+        if (s.dayEarnings) t.dayEarnings = s.dayEarnings;
+        if (s.currentDayEarnings !== undefined) t.currentDayEarnings = s.currentDayEarnings;
+        if (s.currentDayFares !== undefined) t.currentDayFares = s.currentDayFares;
+        if (s.currentDayKm !== undefined) t.currentDayKm = s.currentDayKm;
+        if (s.currentDayFines !== undefined) t.currentDayFines = s.currentDayFines;
+        if (s.currentDayTopFare !== undefined) t.currentDayTopFare = s.currentDayTopFare;
+
+        if (saveData.citySeed) this.citySeed = saveData.citySeed;
         if (saveData.gameTime) this.gameTime = saveData.gameTime;
     }
 

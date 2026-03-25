@@ -84,6 +84,7 @@ class HazardManager {
                     if (d < light.radius && Math.abs(taxi.speed) > 20) {
                         taxi.money -= RED_LIGHT_FINE;
                         taxi.totalFines++;
+                        taxi.currentDayFines = (taxi.currentDayFines || 0) + 1;
                         light.cooldown = TRAFFIC_LIGHT_CYCLE;
                         this.addNotification(`🚦 Red light! Fine -${formatMoney(RED_LIGHT_FINE)}`, 'danger');
                         taxi.flashTimer = 0.5;
@@ -105,6 +106,7 @@ class HazardManager {
                 const fine = SPEED_FINE_AMOUNT + Math.floor((taxi.currentDisplaySpeed - localLimit) * 0.5);
                 taxi.money -= fine;
                 taxi.totalFines++;
+                taxi.currentDayFines = (taxi.currentDayFines || 0) + 1;
                 cam.cooldown = 30;
                 this.addNotification(`📸 Speed fine! -${formatMoney(fine)} (${Math.floor(taxi.currentDisplaySpeed)}/${localLimit} km/h)`, 'danger');
                 taxi.flashTimer = 0.5;

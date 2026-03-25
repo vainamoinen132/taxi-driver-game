@@ -2,6 +2,23 @@
 // UTILITY FUNCTIONS
 // ============================================================
 
+// Seeded random number generator (mulberry32)
+class SeededRandom {
+    constructor(seed) {
+        this.state = seed;
+    }
+    next() {
+        this.state |= 0;
+        this.state = this.state + 0x6D2B79F5 | 0;
+        let t = Math.imul(this.state ^ this.state >>> 15, 1 | this.state);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    }
+    rand(min, max) { return this.next() * (max - min) + min; }
+    randInt(min, max) { return Math.floor(this.rand(min, max + 1)); }
+    randChoice(arr) { return arr[Math.floor(this.next() * arr.length)]; }
+}
+
 function rand(min, max) {
     return Math.random() * (max - min) + min;
 }
