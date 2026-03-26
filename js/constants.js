@@ -330,7 +330,7 @@ const RATING_SMOOTH_FARES = 20; // rolling average window
 const VIP_CHANCE = 0.08;
 const VIP_FARE_MULTIPLIER = 3.5;
 const VIP_MIN_CAR_HEALTH = 80;
-const VIP_WAIT_TIME = 15; // seconds - impatient
+const VIP_WAIT_TIME = 40; // seconds - gives player time to reach VIPs across the map
 
 // Luggage
 const LUGGAGE_CHANCE = 0.25;

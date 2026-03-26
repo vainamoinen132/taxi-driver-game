@@ -97,20 +97,27 @@ class HUD {
             this.passengerStatus.textContent = statusText;
         }
 
-        // Notifications from hazards
-        const notif = hazardManager.getLatestNotification();
-        if (notif && notif.text !== this.lastNotifText) {
-            this.lastNotifText = notif.text;
-            this.notificationEl.textContent = notif.text;
+        // Notifications from hazards — show stack of up to 3
+        const visibleNotifs = hazardManager.getVisibleNotifications(3);
+        if (visibleNotifs.length > 0) {
             this.notificationEl.classList.remove('hidden');
-            this.notificationEl.style.background = notif.type === 'danger'
-                ? 'rgba(231,76,60,0.9)'
-                : notif.type === 'warning'
-                    ? 'rgba(243,156,18,0.9)'
-                    : 'rgba(46,204,113,0.9)';
-        } else if (!notif) {
+            this.notificationEl.innerHTML = '';
+            for (const notif of visibleNotifs) {
+                const line = document.createElement('div');
+                line.className = 'notif-line';
+                line.textContent = notif.text;
+                line.style.background = notif.type === 'danger'
+                    ? 'rgba(231,76,60,0.9)'
+                    : notif.type === 'warning'
+                        ? 'rgba(243,156,18,0.9)'
+                        : notif.type === 'success'
+                            ? 'rgba(46,204,113,0.9)'
+                            : 'rgba(46,204,113,0.9)';
+                this.notificationEl.appendChild(line);
+            }
+        } else {
             this.notificationEl.classList.add('hidden');
-            this.lastNotifText = '';
+            this.notificationEl.innerHTML = '';
         }
 
         // Radio display

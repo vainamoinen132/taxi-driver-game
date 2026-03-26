@@ -1737,10 +1737,23 @@ class Renderer {
         }
 
         // Draw passengers
+        const hasGpsPro = taxi.personalItems && taxi.personalItems.gps_pro;
         for (const p of passengerMgr.passengers) {
             if (!p.active || p.pickedUp) continue;
-            mctx.fillStyle = '#00FF00';
+            // Passenger location
+            mctx.fillStyle = p.isVIP ? '#FFD700' : '#00FF00';
             mctx.fillRect(p.x * scaleX - 1, p.y * scaleY - 1, 3, 3);
+            // GPS Pro: show destination as a small marker connected by a line
+            if (hasGpsPro) {
+                mctx.strokeStyle = 'rgba(255,100,100,0.4)';
+                mctx.lineWidth = 1;
+                mctx.beginPath();
+                mctx.moveTo(p.x * scaleX, p.y * scaleY);
+                mctx.lineTo(p.destX * scaleX, p.destY * scaleY);
+                mctx.stroke();
+                mctx.fillStyle = 'rgba(255,100,100,0.6)';
+                mctx.fillRect(p.destX * scaleX - 1, p.destY * scaleY - 1, 2, 2);
+            }
         }
 
         // Draw NPC traffic

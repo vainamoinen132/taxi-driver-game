@@ -3,7 +3,7 @@
 // ============================================================
 
 class Passenger {
-    constructor(x, y, destination, city, playerRating = 3.0) {
+    constructor(x, y, destination, city, playerRating = 3.0, hasSeatCovers = false) {
         this.x = x;
         this.y = y;
         this.destination = destination; // building object
@@ -26,7 +26,7 @@ class Passenger {
         this.spawnY = y;
 
         // Passenger type
-        this.type = this._rollType(playerRating);
+        this.type = this._rollType(playerRating, hasSeatCovers);
         this.name = this._generateName();
 
         // VIP status
@@ -45,15 +45,17 @@ class Passenger {
         this.color = this.isVIP ? '#FFD700' : randChoice(['#FFD700', '#FF6B6B', '#6BCB77', '#4ECDC4', '#A78BFA', '#F472B6']);
     }
 
-    _rollType(playerRating = 3.0) {
+    _rollType(playerRating = 3.0, hasSeatCovers = false) {
         const r = Math.random();
-        
+
         // VIP chance increases with rating (cumulative thresholds)
         let vipChance = 0.04;
         if (playerRating >= 4.5) vipChance = 0.12;
         else if (playerRating >= 4.0) vipChance = 0.08;
         else if (playerRating >= 3.5) vipChance = 0.06;
         else if (playerRating < 2.5) vipChance = 0.01;
+        // Seat covers double VIP attraction
+        if (hasSeatCovers) vipChance *= 2;
         
         const thiefChance = vipChance + 0.04;       // 4% thief
         const troubleChance = thiefChance + 0.12;    // 12% troublemaker
@@ -184,11 +186,12 @@ class PassengerManager {
     update(dt, playerTaxi, aiTaxis) {
         // Rating-based spawn multiplier
         const ratingMultiplier = playerTaxi ? this._getRatingSpawnMultiplier(playerTaxi.rating) : 1.0;
-        
+        const hasSeatCovers = playerTaxi && playerTaxi.personalItems && playerTaxi.personalItems.seat_covers;
+
         // Spawn new passengers
         this.spawnTimer -= dt;
         if (this.spawnTimer <= 0 && this.passengers.filter(p => p.active).length < MAX_PASSENGERS) {
-            this.spawnPassenger(null, playerTaxi ? playerTaxi.rating : 3.0);
+            this.spawnPassenger(null, playerTaxi ? playerTaxi.rating : 3.0, hasSeatCovers);
             this.spawnTimer = this.spawnInterval / this.eventMultiplier / ratingMultiplier;
         }
 
@@ -201,7 +204,7 @@ class PassengerManager {
         this.passengers = this.passengers.filter(p => p.active);
     }
 
-    spawnPassenger(nearBuilding = null, playerRating = 3.0) {
+    spawnPassenger(nearBuilding = null, playerRating = 3.0, hasSeatCovers = false) {
         let spawnPos;
         let dest;
 
@@ -214,7 +217,7 @@ class PassengerManager {
         }
 
         if (dest) {
-            const p = new Passenger(spawnPos.x, spawnPos.y, dest, this.city, playerRating);
+            const p = new Passenger(spawnPos.x, spawnPos.y, dest, this.city, playerRating, hasSeatCovers);
             this.passengers.push(p);
             return p;
         }

@@ -196,8 +196,9 @@ class Taxi {
             }
         }
 
-        // Clamp speed
-        const maxPx = this.maxSpeed * (this.health / this.maxHealth * 0.3 + 0.7);
+        // Clamp speed (night visibility penalty applied from game.js)
+        const nightMod = this.nightSpeedMod || 1.0;
+        const maxPx = this.maxSpeed * (this.health / this.maxHealth * 0.3 + 0.7) * nightMod;
         this.speed = clamp(this.speed, -maxPx * REVERSE_SPEED_FACTOR, maxPx);
 
         // Friction
@@ -345,6 +346,10 @@ class Taxi {
     takeDamage(amount) {
         this.health -= amount;
         this.health = Math.max(0, this.health);
+        // First aid kit: auto-recover 10% max health after any damage
+        if (this.personalItems && this.personalItems.first_aid && this.health > 0) {
+            this.health = Math.min(this.maxHealth, this.health + this.maxHealth * 0.1);
+        }
         this.flashTimer = 0.3;
         this.flashColor = '#ff0000';
         this.totalDamageEvents++;

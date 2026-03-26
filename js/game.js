@@ -186,6 +186,10 @@ class Game {
         this.taxi.weatherGripMod = this.weather.gripMultiplier;
         this.taxi.weatherRainIntensity = this.weather.current === 'rain' ? this.weather.intensity : 0;
 
+        // Night visibility: 10% speed reduction at night unless sunglasses equipped
+        const hasSunglasses = this.taxi.personalItems && this.taxi.personalItems.sunglasses;
+        this.taxi.nightSpeedMod = (this.weather.isNight() && !hasSunglasses) ? 0.90 : 1.0;
+
         // Day cycle
         if (this.gameTime >= 24 * 60) {
             this.gameTime -= 24 * 60;
@@ -224,7 +228,8 @@ class Game {
 
         // Handle resting at home
         if (this.taxi.isResting) {
-            this.taxi.fatigue -= FATIGUE_REST_RATE * dt;
+            const bedMod = (this.taxi.personalItems && this.taxi.personalItems.better_bed) ? 1.5 : 1.0;
+            this.taxi.fatigue -= FATIGUE_REST_RATE * bedMod * dt;
             if (this.taxi.fatigue <= 0) {
                 this.taxi.fatigue = 0;
                 this.taxi.isResting = false;
@@ -696,7 +701,8 @@ class Game {
             if (d < TILE_SIZE * 2.5 && Math.abs(this.taxi.speed) < 30) {
                 if (p.type === 'app_order') {
                     // Complete app order
-                    const result = this.appOrderMgr.completeOrder(this.taxi.fareBonus);
+                    const phoneMountBonus = (this.taxi.personalItems && this.taxi.personalItems.phone_mount) ? 1.15 : 1.0;
+                    const result = this.appOrderMgr.completeOrder(this.taxi.fareBonus * phoneMountBonus);
                     if (result) {
                         this.taxi.money += result.fare;
                         this.taxi.totalEarnings += result.fare;

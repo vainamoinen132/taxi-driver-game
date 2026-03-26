@@ -201,10 +201,7 @@ class HazardManager {
             if (Math.random() < accidentChance && taxi.currentDisplaySpeed > 150) {
                 const dmg = rand(ACCIDENT_DAMAGE_RANGE[0], ACCIDENT_DAMAGE_RANGE[1]);
                 taxi.takeDamage(dmg);
-                // First aid kit: auto-recover 10% health after accident
-                if (taxi.personalItems && taxi.personalItems.first_aid) {
-                    taxi.health = Math.min(taxi.maxHealth, taxi.health + taxi.maxHealth * 0.1);
-                }
+                // first_aid auto-recovery is handled inside takeDamage()
                 taxi.speed *= 0.1;
                 taxi.invulnTimer = 3;
                 this.accidentCooldown = 90;
@@ -249,5 +246,10 @@ class HazardManager {
         return this.notifications.length > 0
             ? this.notifications[this.notifications.length - 1]
             : null;
+    }
+
+    getVisibleNotifications(max = 3) {
+        // Return the most recent notifications, newest last
+        return this.notifications.slice(-max);
     }
 }
