@@ -316,6 +316,9 @@ const DAILY_INSURANCE = 8;
 const DAILY_PARKING_FEE = 4;
 const DAILY_PHONE_PLAN = 3;
 
+// Debt system — money floor to prevent infinite negative spiral
+const MAX_DEBT = -200;
+
 // Tire system
 const TIRE_MAX_HEALTH = 100;
 const TIRE_WEAR_RATE = 0.0008;  // per pixel moved — slower wear

@@ -245,6 +245,8 @@ class SaveLoadSystem {
                 upgradeLevels: gameState.taxi.upgradeLevels,
                 damageVisual: gameState.taxi.damageVisual,
                 skills: gameState.taxi.skills || null,
+                trainedSkills: gameState.taxi.trainedSkills || null,
+                personalItems: gameState.taxi.personalItems || null,
                 dayEarnings: gameState.taxi.dayEarnings || [],
                 currentDayEarnings: gameState.taxi.currentDayEarnings || 0,
                 currentDayFares: gameState.taxi.currentDayFares || 0,

@@ -40,9 +40,21 @@ class Passenger {
         this.baseFare = Math.max(5, tileDist * BASE_FARE_PER_TILE);
         if (this.isVIP) this.baseFare *= VIP_FARE_MULTIPLIER;
 
-        // Visual
-        this.emoji = this.isVIP ? '🤵' : this.hasLuggage ? '�' : '🧍';
-        this.color = this.isVIP ? '#FFD700' : randChoice(['#FFD700', '#FF6B6B', '#6BCB77', '#4ECDC4', '#A78BFA', '#F472B6']);
+        // Visual — troublemakers get a distinct look so player can avoid them
+        if (this.isVIP) {
+            this.emoji = '🤵';
+            this.color = '#FFD700';
+        } else if (this.type === 'troublemaker') {
+            this.emoji = '😤';
+            this.color = '#FF4444';
+        } else if (this.type === 'thief') {
+            // Thieves look normal — no warning (they're sneaky)
+            this.emoji = this.hasLuggage ? '🧳' : '🧍';
+            this.color = randChoice(['#FFD700', '#FF6B6B', '#6BCB77', '#4ECDC4', '#A78BFA', '#F472B6']);
+        } else {
+            this.emoji = this.hasLuggage ? '🧳' : '🧍';
+            this.color = randChoice(['#FFD700', '#FF6B6B', '#6BCB77', '#4ECDC4', '#A78BFA', '#F472B6']);
+        }
     }
 
     _rollType(playerRating = 3.0, hasSeatCovers = false) {
@@ -100,10 +112,11 @@ class Passenger {
         let fare = this.baseFare * fareBonus * (fareMultiplier || 1.0);
 
         if (this.type === 'troublemaker') {
-            if (Math.random() < 0.6) {
-                return { fare: 0, tip: 0, stars: 1, message: `${this.name} refused to pay!` };
+            // 40% chance to refuse payment (reduced from 60% since player can now see the warning)
+            if (Math.random() < 0.4) {
+                return { fare: 0, tip: 0, stars: 1, message: `${this.name} refused to pay!`, feedback: 'refused to pay' };
             }
-            fare *= 0.3;
+            fare *= 0.5; // Pay less but not as punishing as before
         }
 
         // Enhanced tip calculation based on multiple factors
@@ -136,38 +149,39 @@ class Passenger {
             if (this.isVIP) tip *= 2;
         }
 
-        // Enhanced star rating calculation
+        // Star rating calculation with tracked reasons
         let stars = 5;
-        
+        const ratingReasons = [];
+
         // Damage penalties
-        if ((rideDamage || 0) > 5) stars -= 1;
-        if ((rideDamage || 0) > 15) stars -= 1;
-        if (this.isVIP && (rideDamage || 0) > 3) stars -= 1;
-        
+        if ((rideDamage || 0) > 5) { stars -= 1; ratingReasons.push('-1 crash damage'); }
+        if ((rideDamage || 0) > 15) { stars -= 1; ratingReasons.push('-1 heavy damage'); }
+        if (this.isVIP && (rideDamage || 0) > 3) { stars -= 1; ratingReasons.push('-1 VIP uncomfortable'); }
+
         // Speed penalties
-        if (avgSpeed > 200) stars -= 1; // Reckless speed
-        if (avgSpeed < 40) stars -= 1; // Too slow
-        
+        if (avgSpeed > 200) { stars -= 1; ratingReasons.push('-1 reckless speed'); }
+        if (avgSpeed < 40) { stars -= 1; ratingReasons.push('-1 too slow'); }
+
         // Wait time penalties
-        if (waitTime > 15) stars -= 1;
-        if (waitTime > 30) stars -= 1;
-        
+        if (waitTime > 15) { stars -= 1; ratingReasons.push('-1 long wait'); }
+        if (waitTime > 30) { stars -= 1; ratingReasons.push('-1 very long wait'); }
+
         // VIP is more demanding
         if (this.isVIP) {
-            if (waitTime > 5) stars -= 1;
-            if (avgSpeed > 160) stars -= 1;
+            if (waitTime > 5) { stars -= 1; ratingReasons.push('-1 VIP waited'); }
+            if (avgSpeed > 160) { stars -= 1; ratingReasons.push('-1 VIP felt unsafe'); }
         }
-        
+
         stars = clamp(stars, 1, 5);
 
-        // Generate contextual feedback
+        // Build feedback from actual rating factors
         let feedback = null;
-        if (stars >= 4) {
-            const compliments = ['Great driving!', 'Smooth ride!', 'Thanks for the quick trip!', 'Excellent service!'];
-            feedback = randChoice(compliments);
-        } else if (stars <= 2) {
-            const complaints = ['Drive more carefully', 'That was too fast', 'You took too long', 'Rough ride'];
-            feedback = randChoice(complaints);
+        if (ratingReasons.length === 0) {
+            feedback = 'Perfect ride!';
+        } else if (stars >= 4) {
+            feedback = randChoice(['Great driving!', 'Smooth ride!', 'Nice trip!']);
+        } else {
+            feedback = ratingReasons.slice(0, 2).join(', ');
         }
 
         return { fare: Math.round(fare), tip: Math.round(tip), stars, message: null, feedback };

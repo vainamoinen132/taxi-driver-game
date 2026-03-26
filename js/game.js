@@ -207,6 +207,17 @@ class Game {
             );
         }
 
+        // Debt floor — clamp money and warn player
+        if (this.taxi.money < MAX_DEBT) {
+            this.taxi.money = MAX_DEBT;
+        }
+        if (this.taxi.money < 0 && !this._debtWarned) {
+            this._debtWarned = true;
+            this.hazardMgr.addNotification(`💸 You're in debt! Earn fares to recover. Max debt: ${formatMoney(MAX_DEBT)}`, 'danger');
+        } else if (this.taxi.money >= 0) {
+            this._debtWarned = false;
+        }
+
         // Update taxi input
         this.taxi.keys.w = !!this.keysDown['w'] || !!this.keysDown['W'] || !!this.keysDown['ArrowUp'];
         this.taxi.keys.a = !!this.keysDown['a'] || !!this.keysDown['A'] || !!this.keysDown['ArrowLeft'];
@@ -276,6 +287,14 @@ class Game {
 
         // Update passengers
         this.passengerMgr.update(dt, this.taxi, this.aiTaxis);
+
+        // Troublemaker confirm timer decay
+        if (this._troubleConfirmTimer > 0) {
+            this._troubleConfirmTimer -= dt;
+            if (this._troubleConfirmTimer <= 0) {
+                this._troubleConfirmed = null;
+            }
+        }
 
         // Update events
         this.eventMgr.update(dt, this.gameTime);
@@ -672,6 +691,14 @@ class Game {
                     this.hazardMgr.addNotification(`🤵 VIP ${p.name} refuses your car — health too low!`, 'warning');
                     return;
                 }
+                // Troublemaker warning — first press shows warning, second press confirms
+                if (p.type === 'troublemaker' && !this._troubleConfirmed) {
+                    this._troubleConfirmed = p;
+                    this._troubleConfirmTimer = 3; // 3 seconds to press again
+                    this.hazardMgr.addNotification(`😤 ${p.name} looks like trouble! Press SPACE again to pick up, or drive away.`, 'warning');
+                    return;
+                }
+                this._troubleConfirmed = null;
                 // Luggage loading delay
                 if (p.hasLuggage && !this.taxi.loadingLuggage) {
                     this.taxi.loadingLuggage = true;
@@ -746,9 +773,11 @@ class Game {
             // Apply character tipChance/tipAmount modifiers
             const charTipMult = this.getCharacterBonus('tipAmount');
             if (charTipMult !== 1.0) result.tip = Math.round(result.tip * charTipMult);
-            // Charisma skill boosts tips
+            // Charisma (character) + negotiation (trained) boost tips
             const charismaLvl = (this.taxi.skills && this.taxi.skills.charisma) || 0;
-            if (charismaLvl > 0.5) result.tip = Math.round(result.tip * (1 + (charismaLvl - 0.5) * 0.3));
+            const negotiationLvl = (this.taxi.trainedSkills && this.taxi.trainedSkills.negotiation) || 0;
+            const tipSkillBonus = (charismaLvl > 0.5 ? (charismaLvl - 0.5) * 0.3 : 0) + negotiationLvl * 0.10;
+            if (tipSkillBonus > 0) result.tip = Math.round(result.tip * (1 + tipSkillBonus));
             const total = result.fare + result.tip;
 
             if (result.message) {
@@ -1211,7 +1240,7 @@ class Game {
         overlay.querySelectorAll('.home-skill-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const key = btn.dataset.skill;
-                const sk = this.taxi.skills;
+                const sk = this.taxi.trainedSkills;
                 const skillDefs = this._getSkillDefs();
                 const def = skillDefs.find(s => s.key === key);
                 const lvl = sk[key] || 0;
@@ -1418,10 +1447,10 @@ class Game {
     }
 
     _renderHomeSkills() {
-        if (!this.taxi.skills) {
-            this.taxi.skills = { negotiation: 0, navigation: 0, endurance: 0, mechanics: 0 };
+        if (!this.taxi.trainedSkills) {
+            this.taxi.trainedSkills = { negotiation: 0, navigation: 0, endurance: 0, mechanics: 0 };
         }
-        const sk = this.taxi.skills;
+        const sk = this.taxi.trainedSkills;
         const skillDefs = this._getSkillDefs();
 
         let html = '<div class="home-section"><h3>📚 Skills & Training</h3>';
@@ -1682,6 +1711,7 @@ class Game {
         if (s.ownedCars) t.ownedCars = s.ownedCars;
         if (s.upgradeLevels) t.upgradeLevels = s.upgradeLevels;
         if (s.skills) t.skills = s.skills;
+        if (s.trainedSkills) t.trainedSkills = s.trainedSkills;
         if (s.personalItems) t.personalItems = s.personalItems;
 
         // Load earnings tracking data

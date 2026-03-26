@@ -66,6 +66,9 @@ class Taxi {
         this.fatigue = 0;
         this.isResting = false;
 
+        // Trainable skills (separate from character skills)
+        this.trainedSkills = { negotiation: 0, navigation: 0, endurance: 0, mechanics: 0 };
+
         // Navigation waypoint (for showing direction to a building)
         this.navTarget = null; // { x, y, label, icon }
 
@@ -244,8 +247,10 @@ class Taxi {
             this.rideSpeedSamples++;
         }
 
-        // Tire wear (mechanics skill reduces wear)
-        const mechanicsLvl = (this.skills && this.skills.mechanics) || 0;
+        // Tire wear (character mechanic skill + trained mechanics both reduce wear)
+        const charMechanicSkill = (this.skills && this.skills.mechanic) || 0; // character float 0-1
+        const trainedMechanics = (this.trainedSkills && this.trainedSkills.mechanics) || 0; // int 0-3
+        const mechanicsLvl = charMechanicSkill + trainedMechanics * 0.15;
         const tireWearMult = ((this.weatherRainIntensity || 0) > 0.2 ? TIRE_RAIN_WEAR_MULT : 1.0) * (1 - mechanicsLvl * 0.15);
         this.tireHealth -= moved * TIRE_WEAR_RATE * tireWearMult;
         this.tireHealth = Math.max(0, this.tireHealth);
@@ -289,9 +294,11 @@ class Taxi {
             }
         }
 
-        // Fatigue increases while driving (endurance skill + character bonus slow it)
+        // Fatigue increases while driving (character endurance + trained endurance both slow it)
         if (Math.abs(this.speed) > 5) {
-            const enduranceLvl = (this.skills && this.skills.endurance) || 0;
+            const charEndurance = (this.skills && this.skills.endurance) || 0; // character float 0-1
+            const trainedEndurance = (this.trainedSkills && this.trainedSkills.endurance) || 0; // int 0-3
+            const enduranceLvl = charEndurance + trainedEndurance * 0.15;
             const charFatigueMod = (this.characterBonuses && this.characterBonuses.fatigueRate) || 1.0;
             const coffeeMod = (this.personalItems && this.personalItems.coffee_thermos) ? 0.8 : 1.0;
             this.fatigue += FATIGUE_RATE * (1 - enduranceLvl * 0.15) * charFatigueMod * coffeeMod * dt;
