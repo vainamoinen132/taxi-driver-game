@@ -99,10 +99,6 @@ class Passenger {
         }
     }
 
-    getDistanceToDestination() {
-        return dist(this.x, this.y, this.destX, this.destY);
-    }
-
     getDestinationName() {
         return BUILDING_ICONS[this.destination.type] + ' ' +
                this.destination.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());

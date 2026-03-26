@@ -112,10 +112,7 @@ class Game {
         // Create GPS system
         this.gps = new GPSRouteSystem(this.city);
 
-        // Police patrol system disabled — was blocking gameplay
-        // this.police = new PolicePatrolSystem(this.city);
-        // this.police.setHazardManager(this.hazardMgr);
-        this.police = null;
+        this.police = null; // Police patrol system disabled — was blocking gameplay
 
         // Create radio system
         this.radio = new RadioSystem();

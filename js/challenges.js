@@ -170,12 +170,4 @@ class ChallengeManager {
         const challenge = this.currentChallenges.find(c => c.type === challengeType);
         return challenge ? { progress: challenge.progress, target: challenge.target, completed: challenge.completed } : null;
     }
-
-    getCompletedCount() {
-        return this.completedToday.length;
-    }
-
-    getTotalCount() {
-        return this.currentChallenges.length;
-    }
 }
