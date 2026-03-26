@@ -29,6 +29,9 @@ class Game {
         // Audio
         this.audio = new AudioManager();
 
+        // Floating text effects (fare cha-ching, etc.)
+        this.floatingTexts = [];
+
         // Input
         this.keysDown = {};
         this._setupInput();
@@ -198,6 +201,7 @@ class Game {
         if (this.gameTime >= 24 * 60) {
             this.gameTime -= 24 * 60;
             this.taxi.day++;
+            this._dayStartDamage = this.taxi.totalDamageEvents || 0;
         }
 
         // Daily expenses at start of new day
@@ -251,7 +255,7 @@ class Game {
                 this.hazardMgr.addNotification('😊 Fully rested! Ready to hit the road!', 'info');
             }
             this.hud.update(this.taxi, this.gameTime, this.hazardMgr, this.eventMgr, this.appOrderMgr, this.weather, this.radio);
-            this.camera.follow(this.taxi.x, this.taxi.y);
+            this.camera.follow(this.taxi.x, this.taxi.y, dt);
             return; // skip everything else while resting
         }
 
@@ -477,7 +481,7 @@ class Game {
         this.audio.updateEngine(this.taxi.speed, this.taxi.maxSpeed);
 
         // Camera follow
-        this.camera.follow(this.taxi.x, this.taxi.y);
+        this.camera.follow(this.taxi.x, this.taxi.y, dt);
 
         // Update earnings per hour tracking
         this.taxi.updateEarningsPerHour();
@@ -502,6 +506,42 @@ class Game {
             this._towNotified = false;
         }
 
+        // Milestone checks (every 5 seconds)
+        this._milestoneTimer = (this._milestoneTimer || 0) - dt;
+        if (this._milestoneTimer <= 0) {
+            this._milestoneTimer = 5;
+            this._checkMilestones();
+        }
+
+        // Update floating texts
+        for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
+            const ft = this.floatingTexts[i];
+            ft.life -= dt;
+            ft.y -= 40 * dt; // float upward
+            ft.alpha = Math.max(0, ft.life / ft.maxLife);
+            if (ft.life <= 0) this.floatingTexts.splice(i, 1);
+        }
+    }
+
+    _addFloatingText(text, x, y, color) {
+        this.floatingTexts.push({ text, x, y, color, life: 1.5, maxLife: 1.5, alpha: 1 });
+    }
+
+    _checkMilestones() {
+        if (!this._unlockedMilestones) {
+            try {
+                this._unlockedMilestones = JSON.parse(localStorage.getItem('taxi_milestones') || '[]');
+            } catch (e) { this._unlockedMilestones = []; }
+        }
+        for (const m of MILESTONES) {
+            if (this._unlockedMilestones.includes(m.id)) continue;
+            if (m.check(this.taxi, this)) {
+                this._unlockedMilestones.push(m.id);
+                localStorage.setItem('taxi_milestones', JSON.stringify(this._unlockedMilestones));
+                this.hazardMgr.addNotification(`${m.icon} Achievement: ${m.name} — ${m.desc}`, 'success');
+                this.audio.playEvent();
+            }
+        }
     }
 
     _checkVehicleCollision(vehicle, label) {
@@ -523,6 +563,9 @@ class Game {
                     vehicle.speed *= -0.5;
                     this.taxi.invulnTimer = 1.5;
                     this.audio.playDamage();
+                    // Screen shake proportional to impact
+                    const shakeForce = Math.min(impactSpeed / 15, 12);
+                    this.camera.shake(shakeForce, 0.4);
                     if (impactSpeed > 100) {
                         this.hazardMgr.addNotification(`💥 Heavy crash with a ${label}! -${Math.round(dmg)} HP`, 'danger');
                     } else {
@@ -574,6 +617,26 @@ class Game {
             this.gps,
             this.police
         );
+
+        // Draw floating texts on top
+        if (this.floatingTexts.length > 0) {
+            const ctx = this.canvas.getContext('2d');
+            const cam = this.camera;
+            for (const ft of this.floatingTexts) {
+                const sx = ft.x - cam.x;
+                const sy = ft.y - cam.y;
+                ctx.save();
+                ctx.globalAlpha = ft.alpha;
+                ctx.font = 'bold 18px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillStyle = ft.color;
+                ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+                ctx.lineWidth = 3;
+                ctx.strokeText(ft.text, sx, sy);
+                ctx.fillText(ft.text, sx, sy);
+                ctx.restore();
+            }
+        }
     }
 
     // Input handling
@@ -782,6 +845,8 @@ class Game {
                         this.taxi.totalEarnings += result.fare;
                         this.taxi.totalFares++;
                         this.audio.playDropoff();
+                        this.audio.playMoney();
+                        this._addFloatingText(`+${formatMoney(result.fare)}`, this.taxi.x, this.taxi.y - 30, '#FFD700');
                         this.hazardMgr.addNotification(`📱 ${result.app} ride complete! +${formatMoney(result.fare)}`, 'info');
                     }
                     this.taxi.passenger = null;
@@ -850,6 +915,8 @@ class Game {
 
             this.taxi.money += total;
             this.taxi.totalEarnings += total;
+            this.audio.playMoney();
+            this._addFloatingText(`+${formatMoney(total)}`, this.taxi.x, this.taxi.y - 30, total >= 50 ? '#FFD700' : '#2ecc71');
 
             // Track daily earnings
             this.taxi.currentDayEarnings += total;
@@ -1168,6 +1235,15 @@ class Game {
             }
         }
 
+        // Milestones section
+        stats.push(['', '']);
+        stats.push(['--- Achievements ---', '']);
+        const unlocked = this._unlockedMilestones || [];
+        for (const m of MILESTONES) {
+            const done = unlocked.includes(m.id);
+            stats.push([`${m.icon} ${m.name}`, done ? '✅' : m.desc]);
+        }
+
         content.innerHTML = stats.map(([label, val]) =>
             `<div class="stat-row"><span>${label}</span><span>${val}</span></div>`
         ).join('');
@@ -1413,6 +1489,7 @@ class Game {
             this.taxi.day++;
             this._dayStartEarnings = this.taxi.totalEarnings;
             this._dayStartFares = this.taxi.totalFares;
+            this._dayStartDamage = this.taxi.totalDamageEvents || 0;
             this.gameTime = DAY_START_HOUR * 60;
             overlay.classList.add('hidden');
             this.paused = false;

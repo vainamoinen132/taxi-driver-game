@@ -381,3 +381,20 @@ const CHALLENGE_REWARDS = {
 
 // Highway
 const HIGHWAY_SPEED_LIMIT = 350; // no speed cameras on highway
+
+// Milestones / Achievements
+const MILESTONES = [
+    { id: 'first_fare',     icon: '🚕', name: 'First Fare',        desc: 'Complete your first ride',          check: t => t.totalFares >= 1 },
+    { id: 'fare_10',        icon: '🏅', name: 'Regular Driver',    desc: 'Complete 10 fares',                 check: t => t.totalFares >= 10 },
+    { id: 'fare_50',        icon: '🏆', name: 'Veteran Cabbie',    desc: 'Complete 50 fares',                 check: t => t.totalFares >= 50 },
+    { id: 'fare_100',       icon: '👑', name: 'Taxi Legend',        desc: 'Complete 100 fares',                check: t => t.totalFares >= 100 },
+    { id: 'earn_1000',      icon: '💵', name: 'First Grand',       desc: 'Earn $1,000 total',                 check: t => t.totalEarnings >= 1000 },
+    { id: 'earn_5000',      icon: '💰', name: 'Money Maker',       desc: 'Earn $5,000 total',                 check: t => t.totalEarnings >= 5000 },
+    { id: 'earn_20000',     icon: '🤑', name: 'City Tycoon',       desc: 'Earn $20,000 total',                check: t => t.totalEarnings >= 20000 },
+    { id: 'km_50',          icon: '🛣️', name: 'Road Warrior',       desc: 'Drive 50 km',                       check: t => t.totalKm >= 50 },
+    { id: 'km_200',         icon: '🌍', name: 'Cross Country',     desc: 'Drive 200 km',                      check: t => t.totalKm >= 200 },
+    { id: 'rating_5',       icon: '⭐', name: 'Five Stars',        desc: 'Reach a 5.0 star rating',           check: t => t.rating >= 5.0 },
+    { id: 'day_7',          icon: '📅', name: 'One Week',           desc: 'Survive 7 days',                    check: t => t.day >= 7 },
+    { id: 'day_30',         icon: '📆', name: 'Monthly Grind',     desc: 'Survive 30 days',                   check: t => t.day >= 30 },
+    { id: 'no_damage_day',  icon: '🛡️', name: 'Careful Driver',    desc: 'Complete a day with zero damage',   check: (t, g) => g && t.day > 1 && t.currentDayFares >= 3 && (t.totalDamageEvents || 0) === (g._dayStartDamage || 0) },
+];

@@ -9,9 +9,18 @@ class Camera {
         this.width = canvasWidth;
         this.height = canvasHeight;
         this.smoothing = 0.08;
+        this.shakeTimer = 0;
+        this.shakeIntensity = 0;
+        this.shakeOffsetX = 0;
+        this.shakeOffsetY = 0;
     }
 
-    follow(targetX, targetY) {
+    shake(intensity, duration) {
+        this.shakeIntensity = intensity;
+        this.shakeTimer = duration;
+    }
+
+    follow(targetX, targetY, dt) {
         const destX = targetX - this.width / 2;
         const destY = targetY - this.height / 2;
         this.x += (destX - this.x) * this.smoothing;
@@ -20,6 +29,19 @@ class Camera {
         // Clamp to map bounds
         this.x = clamp(this.x, 0, MAP_WIDTH - this.width);
         this.y = clamp(this.y, 0, MAP_HEIGHT - this.height);
+
+        // Apply screen shake
+        if (this.shakeTimer > 0 && dt) {
+            this.shakeTimer -= dt;
+            const decay = this.shakeTimer > 0 ? this.shakeTimer / 0.5 : 0;
+            this.shakeOffsetX = (Math.random() - 0.5) * 2 * this.shakeIntensity * decay;
+            this.shakeOffsetY = (Math.random() - 0.5) * 2 * this.shakeIntensity * decay;
+            this.x += this.shakeOffsetX;
+            this.y += this.shakeOffsetY;
+        } else {
+            this.shakeOffsetX = 0;
+            this.shakeOffsetY = 0;
+        }
     }
 
     snapTo(targetX, targetY) {
