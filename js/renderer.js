@@ -2392,8 +2392,22 @@ class Renderer {
         const mctx = this.mctx;
         const mw = this.minimap.width;
         const mh = this.minimap.height;
-        const scaleX = mw / MAP_WIDTH;
-        const scaleY = mh / MAP_HEIGHT;
+
+        const zoomed = this.minimapMode === 2;
+        // In zoomed mode, show a 12-tile radius around the player at higher detail
+        const zoomRadius = TILE_SIZE * 12;
+        let scaleX, scaleY, offsetX = 0, offsetY = 0;
+        if (zoomed) {
+            scaleX = mw / (zoomRadius * 2);
+            scaleY = mh / (zoomRadius * 2);
+            offsetX = taxi.x - zoomRadius;
+            offsetY = taxi.y - zoomRadius;
+        } else {
+            scaleX = mw / MAP_WIDTH;
+            scaleY = mh / MAP_HEIGHT;
+        }
+        const mx = (px) => (px - offsetX) * scaleX;
+        const my = (py) => (py - offsetY) * scaleY;
 
         mctx.fillStyle = 'rgba(0,0,0,0.8)';
         mctx.fillRect(0, 0, mw, mh);
@@ -2411,12 +2425,10 @@ class Renderer {
                 } else {
                     continue;
                 }
-                mctx.fillRect(
-                    c * TILE_SIZE * scaleX,
-                    r * TILE_SIZE * scaleY,
-                    TILE_SIZE * 2 * scaleX + 1,
-                    TILE_SIZE * 2 * scaleY + 1
-                );
+                const rx = mx(c * TILE_SIZE);
+                const ry = my(r * TILE_SIZE);
+                if (zoomed && (rx < -20 || ry < -20 || rx > mw + 20 || ry > mh + 20)) continue;
+                mctx.fillRect(rx, ry, TILE_SIZE * 2 * scaleX + 1, TILE_SIZE * 2 * scaleY + 1);
             }
         }
 
@@ -2429,7 +2441,8 @@ class Renderer {
                               b.type === 'concert_hall' ? '#9C27B0' :
                               b.type === 'home_base' ? '#FFEB3B' : '#E91E63';
                 mctx.fillStyle = color;
-                mctx.fillRect(b.x * scaleX - 1, b.y * scaleY - 1, b.type === 'home_base' ? 6 : 4, b.type === 'home_base' ? 6 : 4);
+                const bSize = b.type === 'home_base' ? 6 : 4;
+                mctx.fillRect(mx(b.x) - 1, my(b.y) - 1, bSize, bSize);
             }
         }
 
@@ -2437,19 +2450,17 @@ class Renderer {
         const hasGpsPro = taxi.personalItems && taxi.personalItems.gps_pro;
         for (const p of passengerMgr.passengers) {
             if (!p.active || p.pickedUp) continue;
-            // Passenger location
             mctx.fillStyle = p.isVIP ? '#FFD700' : '#00FF00';
-            mctx.fillRect(p.x * scaleX - 1, p.y * scaleY - 1, 3, 3);
-            // GPS Pro: show destination as a small marker connected by a line
+            mctx.fillRect(mx(p.x) - 1, my(p.y) - 1, 3, 3);
             if (hasGpsPro) {
                 mctx.strokeStyle = 'rgba(255,100,100,0.4)';
                 mctx.lineWidth = 1;
                 mctx.beginPath();
-                mctx.moveTo(p.x * scaleX, p.y * scaleY);
-                mctx.lineTo(p.destX * scaleX, p.destY * scaleY);
+                mctx.moveTo(mx(p.x), my(p.y));
+                mctx.lineTo(mx(p.destX), my(p.destY));
                 mctx.stroke();
                 mctx.fillStyle = 'rgba(255,100,100,0.6)';
-                mctx.fillRect(p.destX * scaleX - 1, p.destY * scaleY - 1, 2, 2);
+                mctx.fillRect(mx(p.destX) - 1, my(p.destY) - 1, 2, 2);
             }
         }
 
@@ -2457,7 +2468,16 @@ class Renderer {
         if (trafficMgr) {
             mctx.fillStyle = 'rgba(150,150,150,0.5)';
             for (const car of trafficMgr.cars) {
-                mctx.fillRect(car.x * scaleX - 1, car.y * scaleY - 1, 2, 2);
+                mctx.fillRect(mx(car.x) - 1, my(car.y) - 1, 2, 2);
+            }
+        }
+
+        // Draw traffic lights on minimap
+        if (hazardMgr && hazardMgr.trafficLights) {
+            for (const light of hazardMgr.trafficLights) {
+                const state = hazardMgr.getTrafficLightState(light);
+                mctx.fillStyle = state === 'red' ? '#e74c3c' : state === 'yellow' ? '#f1c40f' : '#2ecc71';
+                mctx.fillRect(mx(light.x) - 1, my(light.y) - 1, 3, 3);
             }
         }
 
@@ -2465,34 +2485,30 @@ class Renderer {
         if (hazardMgr && hazardMgr.speedCameras) {
             for (const sc of hazardMgr.speedCameras) {
                 mctx.fillStyle = '#4488ff';
-                mctx.fillRect(sc.x * scaleX - 2, sc.y * scaleY - 2, 4, 4);
+                mctx.fillRect(mx(sc.x) - 2, my(sc.y) - 2, 4, 4);
             }
         }
 
         // Draw AI taxis
         for (const ai of aiTaxis) {
             mctx.fillStyle = ai.color;
-            mctx.fillRect(ai.x * scaleX - 2, ai.y * scaleY - 2, 4, 4);
+            mctx.fillRect(mx(ai.x) - 2, my(ai.y) - 2, 4, 4);
         }
 
         // Draw nav waypoint
         if (taxi.navTarget) {
             mctx.strokeStyle = '#00FF88';
             mctx.lineWidth = 2;
-            const nx = taxi.navTarget.x * scaleX;
-            const ny = taxi.navTarget.y * scaleY;
             mctx.beginPath();
-            mctx.arc(nx, ny, 5, 0, Math.PI * 2);
+            mctx.arc(mx(taxi.navTarget.x), my(taxi.navTarget.y), 5, 0, Math.PI * 2);
             mctx.stroke();
         }
 
         // Draw destination if carrying passenger
         if (taxi.hasPassenger && taxi.passenger) {
             mctx.fillStyle = '#FF4444';
-            const dx = taxi.passenger.destX * scaleX;
-            const dy = taxi.passenger.destY * scaleY;
             mctx.beginPath();
-            mctx.arc(dx, dy, 4, 0, Math.PI * 2);
+            mctx.arc(mx(taxi.passenger.destX), my(taxi.passenger.destY), 4, 0, Math.PI * 2);
             mctx.fill();
         }
 
@@ -2501,26 +2517,35 @@ class Renderer {
         if (eb) {
             mctx.strokeStyle = '#FFD700';
             mctx.lineWidth = 1;
-            mctx.strokeRect(eb.x * scaleX - 3, eb.y * scaleY - 3, 8, 8);
+            mctx.strokeRect(mx(eb.x) - 3, my(eb.y) - 3, 8, 8);
         }
 
         // Draw player taxi (on top)
         mctx.fillStyle = '#FFD700';
         mctx.beginPath();
-        mctx.arc(taxi.x * scaleX, taxi.y * scaleY, 3, 0, Math.PI * 2);
+        mctx.arc(mx(taxi.x), my(taxi.y), zoomed ? 5 : 3, 0, Math.PI * 2);
         mctx.fill();
         mctx.strokeStyle = '#000';
         mctx.lineWidth = 1;
         mctx.stroke();
 
-        // Camera viewport indicator
-        mctx.strokeStyle = 'rgba(255,255,255,0.4)';
-        mctx.lineWidth = 1;
-        mctx.strokeRect(
-            taxi.x * scaleX - (window.innerWidth / 2 * scaleX),
-            taxi.y * scaleY - (window.innerHeight / 2 * scaleY),
-            window.innerWidth * scaleX,
-            window.innerHeight * scaleY
-        );
+        // Camera viewport indicator (overview modes only)
+        if (!zoomed) {
+            mctx.strokeStyle = 'rgba(255,255,255,0.4)';
+            mctx.lineWidth = 1;
+            mctx.strokeRect(
+                mx(taxi.x) - (window.innerWidth / 2 * scaleX),
+                my(taxi.y) - (window.innerHeight / 2 * scaleY),
+                window.innerWidth * scaleX,
+                window.innerHeight * scaleY
+            );
+        }
+
+        // Zoomed mode label
+        if (zoomed) {
+            mctx.fillStyle = 'rgba(0,255,136,0.8)';
+            mctx.font = '10px sans-serif';
+            mctx.fillText('ZOOM', 4, mh - 4);
+        }
     }
 }

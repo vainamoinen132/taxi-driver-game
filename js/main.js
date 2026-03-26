@@ -118,16 +118,20 @@
     function buildSaveSlots(containerId, mode) {
         const container = document.getElementById(containerId);
         container.innerHTML = '';
-        
-        for (let i = 0; i < 3; i++) {
+
+        // Show auto-save slot in load mode
+        const slots = mode === 'load' ? ['auto', 0, 1, 2] : [0, 1, 2];
+
+        for (const i of slots) {
             const info = saveSystem.getSaveInfo(i);
             const slot = document.createElement('div');
             slot.className = 'save-slot' + (info ? ' has-data' : ' empty');
-            
+            const label = i === 'auto' ? '💾 Auto-Save' : `Slot ${i + 1}`;
+
             if (info) {
                 slot.innerHTML = `
                     <div class="save-slot-header">
-                        <span class="save-slot-name">${info.characterName}</span>
+                        <span class="save-slot-name">${label}: ${info.characterName}</span>
                         <span class="save-slot-date">${info.dateStr}</span>
                     </div>
                     <div class="save-slot-details">
@@ -137,7 +141,7 @@
                         <span>⭐ ${info.rating.toFixed(1)}</span>
                     </div>
                     <div class="save-slot-actions">
-                        <button class="slot-btn ${mode === 'save' ? 'primary' : 'primary'}" data-slot="${i}" data-action="${mode}">
+                        <button class="slot-btn primary" data-slot="${i}" data-action="${mode}">
                             ${mode === 'save' ? '💾 Save Here' : '▶️ Load'}
                         </button>
                         <button class="slot-btn danger" data-slot="${i}" data-action="delete">🗑️ Delete</button>
@@ -145,18 +149,19 @@
                 `;
             } else {
                 slot.innerHTML = `
-                    <div class="save-slot-empty">Slot ${i + 1} — Empty</div>
+                    <div class="save-slot-empty">${label} — Empty</div>
                     ${mode === 'save' ? `<button class="slot-btn primary" data-slot="${i}" data-action="save">💾 Save Here</button>` : ''}
                 `;
             }
-            
+
             container.appendChild(slot);
         }
         
         // Wire up slot buttons
         container.querySelectorAll('.slot-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const slotIdx = parseInt(e.target.dataset.slot);
+                const raw = e.target.dataset.slot;
+                const slotIdx = raw === 'auto' ? 'auto' : parseInt(raw);
                 const action = e.target.dataset.action;
                 
                 if (action === 'save') {
@@ -194,10 +199,10 @@
 
     // Main menu: Continue -> Load most recent save
     document.getElementById('btn-continue').addEventListener('click', () => {
-        // Find most recent save
+        // Find most recent save (including auto-save)
         let latest = null;
         let latestSlot = -1;
-        for (let i = 0; i < 3; i++) {
+        for (const i of ['auto', 0, 1, 2]) {
             const data = saveSystem.load(i);
             if (data && (!latest || data.timestamp > latest.timestamp)) {
                 latest = data;

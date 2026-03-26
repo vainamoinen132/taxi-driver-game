@@ -209,6 +209,8 @@ class HomeScreen {
             overlay.classList.add('hidden');
             game.paused = false;
             game.hazardMgr.addNotification(`☀️ Day ${game.taxi.day} begins! Good luck!`, 'info');
+            // Auto-save on day transition
+            game.saveGame('auto');
         });
     }
 

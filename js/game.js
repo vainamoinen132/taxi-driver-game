@@ -205,6 +205,9 @@ class Game {
             this.gameTime -= 24 * 60;
             this.taxi.day++;
             this._dayStartDamage = this.taxi.totalDamageEvents || 0;
+            // Auto-save on day transition
+            this.saveGame('auto');
+            this.hazardMgr.addNotification('💾 Auto-saved', 'success');
         }
 
         // Daily expenses at start of new day
@@ -604,6 +607,7 @@ class Game {
     }
 
     _render(dt) {
+        this.renderer.minimapMode = this.minimapMode || 0;
         this.renderer.render(
             this.camera,
             this.city,
@@ -673,9 +677,21 @@ class Game {
             }
 
             if (e.key === 'm' || e.key === 'M') {
-                this.minimapCanvas.classList.toggle('large');
-                // Re-size canvas
+                // Cycle: small → large → zoomed → hidden → small
+                this.minimapMode = ((this.minimapMode || 0) + 1) % 4;
                 const mm = this.minimapCanvas;
+                mm.classList.remove('large', 'zoomed');
+                if (this.minimapMode === 0) {
+                    mm.style.display = '';
+                } else if (this.minimapMode === 1) {
+                    mm.classList.add('large');
+                    mm.style.display = '';
+                } else if (this.minimapMode === 2) {
+                    mm.classList.add('zoomed');
+                    mm.style.display = '';
+                } else {
+                    mm.style.display = 'none';
+                }
                 mm.width = mm.clientWidth;
                 mm.height = mm.clientHeight;
             }

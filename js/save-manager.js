@@ -88,6 +88,7 @@ class SaveLoadSystem {
     }
 
     hasSaves() {
+        if (localStorage.getItem('taxi_save_auto')) return true;
         for (let i = 0; i < this.saveSlots; i++) {
             if (localStorage.getItem(`taxi_save_${i}`)) return true;
         }

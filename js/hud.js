@@ -19,6 +19,7 @@ class HUD {
         this.interactionText = document.getElementById('interaction-text');
         this.eventBanner = document.getElementById('event-banner');
         this.eventText = document.getElementById('event-text');
+        this.weatherEl = document.getElementById('hud-weather');
 
         // Radio display elements
         this.radioDisplay = document.getElementById('radio-display');
@@ -85,12 +86,44 @@ class HUD {
             if (this._speedWarningEl) this._speedWarningEl.style.display = 'none';
         }
 
+        // Red light approach warning
+        if (hazardManager && hazardManager.trafficLights && Math.abs(taxi.speed) > 20) {
+            let nearRed = false;
+            for (const light of hazardManager.trafficLights) {
+                const d = dist(taxi.x, taxi.y, light.x, light.y);
+                if (d < TILE_SIZE * 3 && hazardManager.getTrafficLightState(light) === 'red') {
+                    nearRed = true;
+                    break;
+                }
+            }
+            if (nearRed) {
+                if (!this._redLightEl) {
+                    this._redLightEl = document.createElement('div');
+                    this._redLightEl.className = 'hud-item red-light-warn';
+                    this._redLightEl.textContent = '🚦 RED LIGHT';
+                    document.getElementById('hud-top-left').appendChild(this._redLightEl);
+                }
+                this._redLightEl.style.display = '';
+            } else if (this._redLightEl) {
+                this._redLightEl.style.display = 'none';
+            }
+        } else if (this._redLightEl) {
+            this._redLightEl.style.display = 'none';
+        }
+
         // KM
         this.kmEl.textContent = taxi.totalKm.toFixed(1);
 
         // Time
         this.timeEl.textContent = formatTime(gameTime);
         this.dayEl.textContent = taxi.day;
+
+        // Weather
+        if (weather && this.weatherEl) {
+            let label = weather.getWeatherIcon() + ' ' + weather.getWeatherLabel();
+            if (weather.isNight()) label += ' 🌙';
+            this.weatherEl.textContent = label;
+        }
 
         // Passenger info
         if (taxi.loadingLuggage) {

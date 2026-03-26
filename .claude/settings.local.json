@@ -3,7 +3,13 @@
     "allow": [
       "Bash(wc -l /c/Users/AnilTurkmayali/Documents/GitHub/taxi-driver-game/js/*.js)",
       "Bash(node -c js/home-screen.js)",
-      "Bash(node -c js/game.js)"
+      "Bash(node -c js/game.js)",
+      "Bash(for file:*)",
+      "Bash(do echo:*)",
+      "Bash(do)",
+      "Bash(python3:*)",
+      "Bash(done)",
+      "Bash(grep -r \"getDistanceToDestination\" js/*.js)"
     ]
   }
 }
