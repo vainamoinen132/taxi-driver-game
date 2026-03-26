@@ -863,6 +863,30 @@ class Game {
         }
     }
 
+    _getFareBonus() {
+        let bonus = this.getCharacterBonus('fareBonus');
+        const hour = this.gameTime / 60;
+        bonus *= (hour >= 20 || hour < 6)
+            ? this.getCharacterBonus('nightFareBonus')
+            : this.getCharacterBonus('dayFarePenalty');
+        return this.taxi.fareBonus * bonus;
+    }
+
+    _applyTipBonuses(result) {
+        // Lucky dice: bonus 15% tip chance if no tip was given
+        if (result.tip === 0 && this.taxi.personalItems && this.taxi.personalItems.lucky_dice) {
+            if (Math.random() < 0.15) result.tip = rand(TIP_RANGE[0], TIP_RANGE[1]);
+        }
+        // Character tipAmount modifier
+        const charTipMult = this.getCharacterBonus('tipAmount');
+        if (charTipMult !== 1.0) result.tip = Math.round(result.tip * charTipMult);
+        // Charisma (character) + negotiation (trained) boost
+        const charismaLvl = (this.taxi.skills && this.taxi.skills.charisma) || 0;
+        const negotiationLvl = (this.taxi.trainedSkills && this.taxi.trainedSkills.negotiation) || 0;
+        const tipSkillBonus = (charismaLvl > 0.5 ? (charismaLvl - 0.5) * 0.3 : 0) + negotiationLvl * 0.10;
+        if (tipSkillBonus > 0) result.tip = Math.round(result.tip * (1 + tipSkillBonus));
+    }
+
     _completeFare(passenger) {
         if (passenger.type === 'thief') {
             this.hazardMgr.handleThiefPassenger(this.taxi, passenger);
@@ -870,29 +894,8 @@ class Game {
         } else {
             const fareMultiplier = this.weather.getFareMultiplier(this.gameTime);
             const rideStats = this.taxi.getRideStats();
-            // Apply character fareBonus modifier + time-of-day bonuses
-            let charFareBonus = this.getCharacterBonus('fareBonus');
-            const hour = this.gameTime / 60;
-            if (hour >= 20 || hour < 6) {
-                charFareBonus *= this.getCharacterBonus('nightFareBonus');
-            } else {
-                charFareBonus *= this.getCharacterBonus('dayFarePenalty');
-            }
-            const result = passenger.calculateFare(this.taxi.fareBonus * charFareBonus, fareMultiplier, this.taxi.rideDamageTaken, rideStats.rideTime, rideStats.waitTime, rideStats.avgSpeed);
-            // Lucky dice: bonus 15% tip chance if no tip was given
-            if (result.tip === 0 && this.taxi.personalItems && this.taxi.personalItems.lucky_dice) {
-                if (Math.random() < 0.15) {
-                    result.tip = rand(TIP_RANGE[0], TIP_RANGE[1]);
-                }
-            }
-            // Apply character tipChance/tipAmount modifiers
-            const charTipMult = this.getCharacterBonus('tipAmount');
-            if (charTipMult !== 1.0) result.tip = Math.round(result.tip * charTipMult);
-            // Charisma (character) + negotiation (trained) boost tips
-            const charismaLvl = (this.taxi.skills && this.taxi.skills.charisma) || 0;
-            const negotiationLvl = (this.taxi.trainedSkills && this.taxi.trainedSkills.negotiation) || 0;
-            const tipSkillBonus = (charismaLvl > 0.5 ? (charismaLvl - 0.5) * 0.3 : 0) + negotiationLvl * 0.10;
-            if (tipSkillBonus > 0) result.tip = Math.round(result.tip * (1 + tipSkillBonus));
+            const result = passenger.calculateFare(this._getFareBonus(), fareMultiplier, this.taxi.rideDamageTaken, rideStats.rideTime, rideStats.waitTime, rideStats.avgSpeed);
+            this._applyTipBonuses(result);
             const total = result.fare + result.tip;
 
             if (result.message) {

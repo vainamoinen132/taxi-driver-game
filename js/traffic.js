@@ -137,32 +137,10 @@ class NpcCar {
         return laneDir.dr === d.dr && laneDir.dc === d.dc;
     }
 
-    _isRoad(r, c) {
-        if (r < 0 || r >= MAP_ROWS || c < 0 || c >= MAP_COLS) return false;
-        return isRoadTile(this.city.tiles[r][c]);
-    }
-
-    _getRoadDirs(r, c) {
-        const dirs = [];
-        if (this._isRoad(r - 1, c)) dirs.push({ dr: -1, dc: 0 });
-        if (this._isRoad(r + 1, c)) dirs.push({ dr: 1, dc: 0 });
-        if (this._isRoad(r, c - 1)) dirs.push({ dr: 0, dc: -1 });
-        if (this._isRoad(r, c + 1)) dirs.push({ dr: 0, dc: 1 });
-        return dirs;
-    }
-
-    _findNearestRoadTile(r, c) {
-        for (let radius = 1; radius < 8; radius++) {
-            for (let dr = -radius; dr <= radius; dr++) {
-                for (let dc = -radius; dc <= radius; dc++) {
-                    if (this._isRoad(r + dr, c + dc)) {
-                        return { row: r + dr, col: c + dc };
-                    }
-                }
-            }
-        }
-        return null;
-    }
+    // Delegated to shared RoadNav utilities
+    _isRoad(r, c) { return RoadNav.isRoad(this.city, r, c); }
+    _getRoadDirs(r, c) { return RoadNav.getRoadDirs(this.city, r, c); }
+    _findNearestRoadTile(r, c) { return RoadNav.findNearestRoadTile(this.city, r, c); }
 
     update(dt, allCars, playerTaxi, hazardMgr) {
         if (this.waypoints.length < 2) {
@@ -254,30 +232,9 @@ class NpcCar {
         }
         this.speed = clamp(this.speed, 0, this.maxSpeed);
 
-        // Move
-        const vx = Math.cos(this.angle) * this.speed * dt;
-        const vy = Math.sin(this.angle) * this.speed * dt;
-        const newX = this.x + vx;
-        const newY = this.y + vy;
-
-        // Only move on road tiles
-        const tile = pixelToTile(newX, newY);
-        if (tile.row >= 0 && tile.row < MAP_ROWS && tile.col >= 0 && tile.col < MAP_COLS) {
-            const t = this.city.tiles[tile.row][tile.col];
-            if (t === TILE.ROAD_H || t === TILE.ROAD_V || t === TILE.ROAD_CROSS || t === TILE.HIGHWAY) {
-                this.x = newX;
-                this.y = newY;
-            } else {
-                // Off-road — snap back to nearest road and rebuild
-                this.speed = 0;
-                const snap = this._findNearestRoadTile(tile.row, tile.col);
-                if (snap) {
-                    const ctr = tileToPixel(snap.col, snap.row);
-                    this.x = ctr.x;
-                    this.y = ctr.y;
-                }
-                this._buildPath();
-            }
+        // Move (road-clamped)
+        if (!RoadNav.moveOnRoad(this, dt)) {
+            this._buildPath();
         }
 
         // Stuck detection — respawn quickly if stuck
@@ -316,14 +273,7 @@ class NpcCar {
         this._buildPath();
     }
 
-    getBounds() {
-        return {
-            x: this.x - this.width / 2,
-            y: this.y - this.height / 2,
-            w: this.width,
-            h: this.height,
-        };
-    }
+    getBounds() { return RoadNav.getBounds(this); }
 }
 
 // ============================================================
