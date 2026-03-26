@@ -573,62 +573,29 @@ class Renderer {
             const sy = b.y - cam.y;
             const bw = b.width - 4;
             const bh = b.height - 4;
-            const roofH = Math.max(8, bh * 0.22);
 
-            const wallColor = BUILDING_COLORS[b.type] || '#d0c8c0';
-            const roofColor = BUILDING_ROOF_COLORS[b.type] || '#8a7a6a';
-
-            // Drop shadow
-            ctx.fillStyle = 'rgba(0,0,0,0.18)';
-            ctx.fillRect(sx + 5, sy + 5, bw, bh);
-
-            // Building wall
-            ctx.fillStyle = wallColor;
-            ctx.fillRect(sx + 2, sy + 2, bw, bh);
-
-            // Wall shading — right side slightly darker
-            ctx.fillStyle = 'rgba(0,0,0,0.06)';
-            ctx.fillRect(sx + 2 + bw * 0.7, sy + 2, bw * 0.3, bh);
-
-            // Building outline
-            ctx.strokeStyle = this._darkenColor(wallColor, 25);
-            ctx.lineWidth = 1;
-            ctx.strokeRect(sx + 2, sy + 2, bw, bh);
-
-            // Colored roof
-            ctx.fillStyle = roofColor;
-            ctx.fillRect(sx + 1, sy + 1, bw + 2, roofH);
-            // Roof highlight
-            ctx.fillStyle = 'rgba(255,255,255,0.2)';
-            ctx.fillRect(sx + 1, sy + 1, bw + 2, roofH * 0.4);
-            // Roof bottom edge shadow
-            ctx.fillStyle = 'rgba(0,0,0,0.1)';
-            ctx.fillRect(sx + 1, sy + 1 + roofH - 2, bw + 2, 2);
-
-            // Windows
-            if (bw >= TILE_SIZE * 1.2 && bh >= TILE_SIZE * 1.2) {
-                const winSize = 5;
-                const winGap = 12;
-                for (let wy = sy + roofH + 8; wy < sy + bh - 4; wy += winGap) {
-                    for (let wx = sx + 10; wx < sx + bw - 4; wx += winGap) {
-                        // Window frame
-                        ctx.fillStyle = 'rgba(120,180,220,0.5)';
-                        ctx.fillRect(wx, wy, winSize, winSize);
-                        // Window glint
-                        ctx.fillStyle = 'rgba(255,255,255,0.3)';
-                        ctx.fillRect(wx, wy, winSize * 0.4, winSize * 0.4);
-                    }
-                }
-            }
-
-            // Building icon
-            const icon = BUILDING_ICONS[b.type];
-            if (icon) {
-                const iconSize = Math.min(bw, bh) * 0.32;
-                ctx.font = `${iconSize}px serif`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(icon, sx + bw / 2 + 2, sy + bh / 2 + roofH * 0.3);
+            // Dispatch to type-specific drawing
+            switch (b.type) {
+                case 'gas_station':   this._drawGasStation(ctx, sx, sy, bw, bh); break;
+                case 'home_base':     this._drawHomeBase(ctx, sx, sy, bw, bh); break;
+                case 'police':        this._drawPoliceStation(ctx, sx, sy, bw, bh); break;
+                case 'mall':          this._drawMall(ctx, sx, sy, bw, bh); break;
+                case 'hospital':      this._drawHospital(ctx, sx, sy, bw, bh); break;
+                case 'school':        this._drawSchool(ctx, sx, sy, bw, bh); break;
+                case 'mechanic':      this._drawMechanic(ctx, sx, sy, bw, bh); break;
+                case 'stadium':       this._drawStadium(ctx, sx, sy, bw, bh); break;
+                case 'concert_hall':  this._drawConcertHall(ctx, sx, sy, bw, bh); break;
+                case 'hotel':         this._drawHotel(ctx, sx, sy, bw, bh); break;
+                case 'church':        this._drawChurch(ctx, sx, sy, bw, bh); break;
+                case 'bank':          this._drawBank(ctx, sx, sy, bw, bh); break;
+                case 'factory':       this._drawFactory(ctx, sx, sy, bw, bh); break;
+                case 'restaurant':    this._drawRestaurant(ctx, sx, sy, bw, bh); break;
+                case 'gym':           this._drawGym(ctx, sx, sy, bw, bh); break;
+                case 'house':         this._drawHouse(ctx, sx, sy, bw, bh); break;
+                case 'apartment':     this._drawApartment(ctx, sx, sy, bw, bh); break;
+                case 'office':        this._drawOffice(ctx, sx, sy, bw, bh); break;
+                case 'park':          this._drawPark(ctx, sx, sy, bw, bh); break;
+                default:              this._drawGenericBuilding(ctx, sx, sy, bw, bh, b.type); break;
             }
 
             // Building label
@@ -639,9 +606,723 @@ class Renderer {
                 ctx.strokeStyle = 'rgba(0,0,0,0.7)';
                 ctx.lineWidth = 2.5;
                 const label = b.type.replace(/_/g, ' ').toUpperCase();
-                ctx.strokeText(label, sx + b.width / 2, sy - 3);
-                ctx.fillText(label, sx + b.width / 2, sy - 3);
+                ctx.strokeText(label, sx + bw / 2, sy - 3);
+                ctx.fillText(label, sx + bw / 2, sy - 3);
             }
+        }
+    }
+
+    // ── Shared building base: shadow, walls, gradient shading ──
+    _drawBuildingBase(ctx, sx, sy, bw, bh, wallColor) {
+        ctx.fillStyle = 'rgba(0,0,0,0.22)';
+        ctx.fillRect(sx + 6, sy + 6, bw, bh);
+        ctx.fillStyle = wallColor;
+        ctx.fillRect(sx + 2, sy + 2, bw, bh);
+        const grad = ctx.createLinearGradient(sx + 2, sy, sx + 2 + bw, sy);
+        grad.addColorStop(0, 'rgba(255,255,255,0.08)');
+        grad.addColorStop(0.5, 'rgba(0,0,0,0.0)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.12)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(sx + 2, sy + 2, bw, bh);
+        ctx.strokeStyle = this._darkenColor(wallColor, 30);
+        ctx.lineWidth = 1.2;
+        ctx.strokeRect(sx + 2, sy + 2, bw, bh);
+    }
+
+    _drawRoofBlock(ctx, sx, sy, bw, roofH, roofColor) {
+        ctx.fillStyle = roofColor;
+        ctx.fillRect(sx, sy, bw + 4, roofH);
+        const rg = ctx.createLinearGradient(sx, sy, sx, sy + roofH);
+        rg.addColorStop(0, 'rgba(255,255,255,0.3)');
+        rg.addColorStop(0.5, 'rgba(255,255,255,0.0)');
+        rg.addColorStop(1, 'rgba(0,0,0,0.15)');
+        ctx.fillStyle = rg;
+        ctx.fillRect(sx, sy, bw + 4, roofH);
+        ctx.fillStyle = this._darkenColor(roofColor, 30);
+        ctx.fillRect(sx, sy + roofH - 2, bw + 4, 2);
+    }
+
+    _drawWindowGrid(ctx, sx, sy, bw, bh, startY, winW, winH, gapX, gapY, frameColor) {
+        for (let wy = startY; wy + winH < sy + bh - 4; wy += gapY) {
+            for (let wx = sx + 8; wx + winW < sx + bw - 4; wx += gapX) {
+                ctx.fillStyle = frameColor || '#3a3a3a';
+                ctx.fillRect(wx - 1, wy - 1, winW + 2, winH + 2);
+                const wg = ctx.createLinearGradient(wx, wy, wx + winW, wy + winH);
+                wg.addColorStop(0, 'rgba(140,195,235,0.85)');
+                wg.addColorStop(0.6, 'rgba(100,160,210,0.7)');
+                wg.addColorStop(1, 'rgba(80,130,180,0.8)');
+                ctx.fillStyle = wg;
+                ctx.fillRect(wx, wy, winW, winH);
+                ctx.strokeStyle = frameColor || '#3a3a3a';
+                ctx.lineWidth = 0.6;
+                ctx.beginPath();
+                ctx.moveTo(wx + winW / 2, wy); ctx.lineTo(wx + winW / 2, wy + winH);
+                ctx.moveTo(wx, wy + winH / 2); ctx.lineTo(wx + winW, wy + winH / 2);
+                ctx.stroke();
+                ctx.fillStyle = 'rgba(255,255,255,0.35)';
+                ctx.fillRect(wx + 1, wy + 1, winW * 0.3, winH * 0.3);
+            }
+        }
+    }
+
+    _drawDoorDetail(ctx, cx, bottomY, doorW, doorH, color) {
+        const dx = cx - doorW / 2;
+        const dy = bottomY - doorH;
+        ctx.fillStyle = this._darkenColor(color, 40);
+        ctx.fillRect(dx - 1, dy - 1, doorW + 2, doorH + 2);
+        ctx.fillStyle = color;
+        ctx.fillRect(dx, dy, doorW, doorH);
+        ctx.strokeStyle = this._darkenColor(color, 20);
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(dx + 2, dy + 2, doorW - 4, doorH * 0.45);
+        ctx.strokeRect(dx + 2, dy + doorH * 0.52, doorW - 4, doorH * 0.42);
+        ctx.fillStyle = '#c8b040';
+        ctx.beginPath();
+        ctx.arc(dx + doorW * 0.75, dy + doorH * 0.55, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  GAS STATION — canopy, fuel pumps, shop
+    // ═══════════════════════════════════════════════════
+    _drawGasStation(ctx, sx, sy, bw, bh) {
+        // Concrete pad
+        ctx.fillStyle = '#c8c4bc';
+        ctx.fillRect(sx, sy + bh * 0.55, bw + 4, bh * 0.5);
+        ctx.strokeStyle = '#aaa'; ctx.lineWidth = 0.5;
+        ctx.strokeRect(sx, sy + bh * 0.55, bw + 4, bh * 0.5);
+        // Shop building at back
+        const shopW = bw * 0.45, shopH = bh * 0.5;
+        const shopX = sx + bw * 0.5, shopY = sy + 2;
+        this._drawBuildingBase(ctx, shopX, shopY, shopW, shopH, '#e8e0d0');
+        this._drawRoofBlock(ctx, shopX, shopY, shopW, Math.max(6, shopH * 0.25), '#d05040');
+        this._drawWindowGrid(ctx, shopX, shopY, shopW, shopH, shopY + shopH * 0.3, 6, 5, 10, 10, '#444');
+        this._drawDoorDetail(ctx, shopX + shopW / 2, shopY + shopH + 2, 7, 10, '#6a4a2a');
+        // Canopy over pumps
+        const canopyX = sx + 4, canopyW = bw * 0.42, canopyY = sy + bh * 0.18;
+        ctx.fillStyle = '#888';
+        ctx.fillRect(canopyX + 4, canopyY + 6, 3, bh * 0.42);
+        ctx.fillRect(canopyX + canopyW - 6, canopyY + 6, 3, bh * 0.42);
+        ctx.fillStyle = '#e8e8e8';
+        ctx.fillRect(canopyX, canopyY, canopyW, 8);
+        ctx.fillStyle = '#d04030';
+        ctx.fillRect(canopyX, canopyY, canopyW, 3);
+        ctx.fillStyle = 'rgba(0,0,0,0.08)';
+        ctx.fillRect(canopyX, canopyY + 5, canopyW, 3);
+        // Fuel pumps
+        const pumpY = sy + bh * 0.5;
+        for (let i = 0; i < 2; i++) {
+            const px = canopyX + 8 + i * (canopyW * 0.45);
+            ctx.fillStyle = '#ddd'; ctx.fillRect(px, pumpY, 8, 14);
+            ctx.strokeStyle = '#999'; ctx.lineWidth = 0.8; ctx.strokeRect(px, pumpY, 8, 14);
+            ctx.fillStyle = '#1a1a1a'; ctx.fillRect(px + 1.5, pumpY + 2, 5, 4);
+            ctx.fillStyle = '#0f0'; ctx.fillRect(px + 2, pumpY + 3, 4, 2);
+            ctx.fillStyle = '#333'; ctx.fillRect(px + 6, pumpY + 8, 4, 2);
+            ctx.fillRect(px + 9, pumpY + 6, 2, 6);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  HOME BASE — taxi HQ with garage door
+    // ═══════════════════════════════════════════════════
+    _drawHomeBase(ctx, sx, sy, bw, bh) {
+        this._drawBuildingBase(ctx, sx, sy, bw, bh, '#f5edd5');
+        const roofH = Math.max(10, bh * 0.28);
+        this._drawRoofBlock(ctx, sx, sy, bw, roofH, '#c8a830');
+        this._drawWindowGrid(ctx, sx, sy, bw, bh, sy + roofH + 6, 7, 6, 12, 12, '#5a4a30');
+        this._drawDoorDetail(ctx, sx + bw / 2 + 1, sy + bh + 2, 9, 13, '#7a5a30');
+        // Welcome mat
+        ctx.fillStyle = '#8a6a40';
+        ctx.fillRect(sx + bw / 2 - 6, sy + bh, 13, 3);
+        // Taxi sign
+        ctx.fillStyle = '#f5c518';
+        ctx.fillRect(sx + bw / 2 - 12, sy + roofH + 2, 25, 8);
+        ctx.strokeStyle = '#222'; ctx.lineWidth = 0.6;
+        ctx.strokeRect(sx + bw / 2 - 12, sy + roofH + 2, 25, 8);
+        ctx.fillStyle = '#222'; ctx.font = 'bold 6px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('TAXI HQ', sx + bw / 2 + 1, sy + roofH + 6);
+        // Garage door
+        ctx.fillStyle = '#b0a890';
+        ctx.fillRect(sx + 6, sy + bh * 0.55, bw * 0.25, bh * 0.4);
+        ctx.strokeStyle = '#8a7a60'; ctx.lineWidth = 0.6;
+        for (let ly = sy + bh * 0.55; ly < sy + bh * 0.92; ly += 4) {
+            ctx.beginPath(); ctx.moveTo(sx + 6, ly); ctx.lineTo(sx + 6 + bw * 0.25, ly); ctx.stroke();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  POLICE STATION — badge, lights, barred windows
+    // ═══════════════════════════════════════════════════
+    _drawPoliceStation(ctx, sx, sy, bw, bh) {
+        this._drawBuildingBase(ctx, sx, sy, bw, bh, '#d5dde8');
+        const roofH = Math.max(10, bh * 0.22);
+        this._drawRoofBlock(ctx, sx, sy, bw, roofH, '#3858a0');
+        this._drawWindowGrid(ctx, sx, sy, bw, bh, sy + roofH + 8, 6, 7, 11, 12, '#2a2a4a');
+        // Double doors
+        const doorCx = sx + bw / 2 + 1;
+        ctx.fillStyle = '#2a2a4a'; ctx.fillRect(doorCx - 7, sy + bh - 12, 14, 14);
+        ctx.fillStyle = '#4a5a7a'; ctx.fillRect(doorCx - 6, sy + bh - 11, 5.5, 13);
+        ctx.fillRect(doorCx + 0.5, sy + bh - 11, 5.5, 13);
+        // Badge emblem
+        ctx.fillStyle = '#c8b030';
+        ctx.beginPath();
+        ctx.moveTo(sx + bw / 2 + 1, sy + roofH + 2);
+        ctx.lineTo(sx + bw / 2 + 7, sy + roofH + 5);
+        ctx.lineTo(sx + bw / 2 + 5, sy + roofH + 12);
+        ctx.lineTo(sx + bw / 2 + 1, sy + roofH + 14);
+        ctx.lineTo(sx + bw / 2 - 3, sy + roofH + 12);
+        ctx.lineTo(sx + bw / 2 - 5, sy + roofH + 5);
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#a89020'; ctx.lineWidth = 0.8; ctx.stroke();
+        // Roof lights
+        ctx.fillStyle = '#4488ff';
+        ctx.beginPath(); ctx.arc(sx + bw * 0.3, sy + 2, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ff4444';
+        ctx.beginPath(); ctx.arc(sx + bw * 0.7, sy + 2, 3, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  MALL — glass storefront, wide entrance
+    // ═══════════════════════════════════════════════════
+    _drawMall(ctx, sx, sy, bw, bh) {
+        this._drawBuildingBase(ctx, sx, sy, bw, bh, '#e8dce0');
+        const roofH = Math.max(10, bh * 0.18);
+        this._drawRoofBlock(ctx, sx, sy, bw, roofH, '#c06080');
+        // Large storefront windows
+        const winStartY = sy + roofH + 6;
+        for (let wx = sx + 6; wx + 12 < sx + bw - 2; wx += 15) {
+            ctx.fillStyle = '#444'; ctx.fillRect(wx - 1, winStartY - 1, 13, bh * 0.35 + 2);
+            const wg = ctx.createLinearGradient(wx, winStartY, wx + 12, winStartY + bh * 0.35);
+            wg.addColorStop(0, 'rgba(160,210,240,0.85)');
+            wg.addColorStop(1, 'rgba(120,170,210,0.75)');
+            ctx.fillStyle = wg; ctx.fillRect(wx, winStartY, 12, bh * 0.35);
+            ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(wx + 1, winStartY + 1, 4, bh * 0.12);
+        }
+        // Wide glass entrance
+        const ey = sy + bh - 14;
+        ctx.fillStyle = '#555'; ctx.fillRect(sx + bw / 2 - 10, ey - 1, 22, 16);
+        ctx.fillStyle = 'rgba(160,210,240,0.7)';
+        ctx.fillRect(sx + bw / 2 - 9, ey, 9, 15);
+        ctx.fillRect(sx + bw / 2 + 1, ey, 9, 15);
+        // Sign
+        ctx.fillStyle = '#ff6090'; ctx.fillRect(sx + bw / 2 - 16, sy + roofH + 1, 34, 8);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 6px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('SHOPPING MALL', sx + bw / 2 + 1, sy + roofH + 5);
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  HOSPITAL — red cross, ER entrance
+    // ═══════════════════════════════════════════════════
+    _drawHospital(ctx, sx, sy, bw, bh) {
+        this._drawBuildingBase(ctx, sx, sy, bw, bh, '#f0e4e4');
+        const roofH = Math.max(10, bh * 0.2);
+        this._drawRoofBlock(ctx, sx, sy, bw, roofH, '#d05050');
+        this._drawWindowGrid(ctx, sx, sy, bw, bh, sy + roofH + 10, 6, 6, 11, 11, '#5a3a3a');
+        this._drawDoorDetail(ctx, sx + bw / 2 + 1, sy + bh + 2, 10, 13, '#804040');
+        // Red cross
+        const cx = sx + bw / 2 + 1, cy = sy + roofH + 4;
+        ctx.fillStyle = '#fff'; ctx.fillRect(cx - 7, cy - 1, 14, 10);
+        ctx.fillStyle = '#e03030';
+        ctx.fillRect(cx - 2, cy, 4, 8); ctx.fillRect(cx - 5, cy + 2, 10, 4);
+        // ER sign
+        ctx.fillStyle = '#e03030'; ctx.fillRect(sx + 4, sy + bh - 6, bw * 0.3, 6);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 4px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('ER', sx + 4 + bw * 0.15, sy + bh - 3);
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  SCHOOL — flag pole, name plate
+    // ═══════════════════════════════════════════════════
+    _drawSchool(ctx, sx, sy, bw, bh) {
+        this._drawBuildingBase(ctx, sx, sy, bw, bh, '#dae2ee');
+        const roofH = Math.max(10, bh * 0.22);
+        this._drawRoofBlock(ctx, sx, sy, bw, roofH, '#4a70a8');
+        this._drawWindowGrid(ctx, sx, sy, bw, bh, sy + roofH + 8, 6, 5, 10, 10, '#3a4a6a');
+        this._drawDoorDetail(ctx, sx + bw / 2 + 1, sy + bh + 2, 9, 12, '#5a4030');
+        // Flag pole
+        ctx.fillStyle = '#888'; ctx.fillRect(sx + bw * 0.8, sy - 12, 2, 14);
+        ctx.fillStyle = '#e04040'; ctx.fillRect(sx + bw * 0.8 + 2, sy - 12, 8, 5);
+        // Name plate
+        ctx.fillStyle = '#4a70a8'; ctx.fillRect(sx + bw / 2 - 14, sy + roofH + 1, 30, 7);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 5px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('SCHOOL', sx + bw / 2 + 1, sy + roofH + 5);
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  MECHANIC — garage bays, toolbox, lift
+    // ═══════════════════════════════════════════════════
+    _drawMechanic(ctx, sx, sy, bw, bh) {
+        this._drawBuildingBase(ctx, sx, sy, bw, bh, '#e0d8c8');
+        const roofH = Math.max(8, bh * 0.18);
+        this._drawRoofBlock(ctx, sx, sy, bw, roofH, '#d89040');
+        // Garage bays
+        const bays = Math.max(1, Math.floor(bw / 30));
+        const bayW = (bw - 10) / bays;
+        for (let i = 0; i < bays; i++) {
+            const bx = sx + 6 + i * bayW;
+            const by = sy + roofH + 6;
+            const bayH = bh * 0.6;
+            ctx.fillStyle = '#555'; ctx.fillRect(bx, by, bayW - 4, bayH);
+            // Horizontal slats
+            ctx.strokeStyle = '#777'; ctx.lineWidth = 0.5;
+            for (let ly = by + 3; ly < by + bayH; ly += 3) {
+                ctx.beginPath(); ctx.moveTo(bx, ly); ctx.lineTo(bx + bayW - 4, ly); ctx.stroke();
+            }
+            // Opening highlight
+            ctx.fillStyle = 'rgba(255,180,60,0.15)'; ctx.fillRect(bx + 2, by + 2, bayW - 8, bayH - 4);
+        }
+        // Sign
+        ctx.fillStyle = '#d89040'; ctx.fillRect(sx + bw / 2 - 16, sy + roofH + 1, 34, 7);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 5px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('AUTO REPAIR', sx + bw / 2 + 1, sy + roofH + 5);
+        // Wrench icon drawn
+        ctx.strokeStyle = '#666'; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(sx + bw - 14, sy + bh - 12);
+        ctx.lineTo(sx + bw - 8, sy + bh - 6);
+        ctx.stroke();
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  STADIUM — tiered seating, arch roof, field
+    // ═══════════════════════════════════════════════════
+    _drawStadium(ctx, sx, sy, bw, bh) {
+        this._drawBuildingBase(ctx, sx, sy, bw, bh, '#c8d8c8');
+        // Tiered wall effect
+        const tiers = 3;
+        for (let t = 0; t < tiers; t++) {
+            const inset = t * 3;
+            const tierH = bh / tiers;
+            ctx.fillStyle = `rgba(0,0,0,${0.03 + t * 0.03})`;
+            ctx.fillRect(sx + 2 + inset, sy + 2 + t * tierH, bw - inset * 2, tierH);
+        }
+        // Arched roof
+        ctx.fillStyle = '#508850';
+        ctx.beginPath();
+        ctx.ellipse(sx + bw / 2 + 1, sy + 4, bw / 2 + 2, bh * 0.15, 0, Math.PI, 0);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.beginPath();
+        ctx.ellipse(sx + bw / 2 + 1, sy + 4, bw / 2 + 2, bh * 0.1, 0, Math.PI, 0);
+        ctx.fill();
+        // Green field in center
+        ctx.fillStyle = '#4a9a40';
+        ctx.fillRect(sx + bw * 0.2, sy + bh * 0.35, bw * 0.6, bh * 0.35);
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.5;
+        ctx.strokeRect(sx + bw * 0.22, sy + bh * 0.37, bw * 0.56, bh * 0.31);
+        // Center line
+        ctx.beginPath();
+        ctx.moveTo(sx + bw / 2 + 1, sy + bh * 0.37);
+        ctx.lineTo(sx + bw / 2 + 1, sy + bh * 0.68);
+        ctx.stroke();
+        // Seating dots
+        ctx.fillStyle = 'rgba(80,80,80,0.3)';
+        for (let r = 0; r < 2; r++) {
+            for (let c = sx + 8; c < sx + bw - 6; c += 5) {
+                ctx.fillRect(c, sy + bh * 0.75 + r * 6, 3, 3);
+            }
+        }
+        // Floodlights
+        ctx.fillStyle = '#aaa';
+        ctx.fillRect(sx + 4, sy - 6, 2, 10);
+        ctx.fillRect(sx + bw - 4, sy - 6, 2, 10);
+        ctx.fillStyle = '#ffe860';
+        ctx.beginPath(); ctx.arc(sx + 5, sy - 7, 2.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(sx + bw - 3, sy - 7, 2.5, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  CONCERT HALL — marquee, arched entrance
+    // ═══════════════════════════════════════════════════
+    _drawConcertHall(ctx, sx, sy, bw, bh) {
+        this._drawBuildingBase(ctx, sx, sy, bw, bh, '#e0d0e8');
+        const roofH = Math.max(10, bh * 0.25);
+        this._drawRoofBlock(ctx, sx, sy, bw, roofH, '#9068a8');
+        this._drawWindowGrid(ctx, sx, sy, bw, bh, sy + roofH + 10, 5, 8, 10, 14, '#4a3060');
+        // Arched entrance
+        const archCx = sx + bw / 2 + 1;
+        ctx.fillStyle = '#4a3060';
+        ctx.beginPath();
+        ctx.arc(archCx, sy + bh - 6, 8, Math.PI, 0);
+        ctx.lineTo(archCx + 8, sy + bh + 2);
+        ctx.lineTo(archCx - 8, sy + bh + 2);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#2a1a40';
+        ctx.fillRect(archCx - 6, sy + bh - 4, 12, 6);
+        // Marquee sign with lights
+        ctx.fillStyle = '#1a0a30';
+        ctx.fillRect(sx + bw / 2 - 18, sy + roofH + 1, 38, 9);
+        ctx.strokeStyle = '#c8a0e0'; ctx.lineWidth = 0.8;
+        ctx.strokeRect(sx + bw / 2 - 18, sy + roofH + 1, 38, 9);
+        // Marquee bulbs
+        for (let lx = sx + bw / 2 - 16; lx < sx + bw / 2 + 18; lx += 4) {
+            ctx.fillStyle = lx % 8 < 4 ? '#ffe040' : '#ff6060';
+            ctx.beginPath(); ctx.arc(lx, sy + roofH + 2, 1.2, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(lx, sy + roofH + 9, 1.2, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 5px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('CONCERT HALL', sx + bw / 2 + 1, sy + roofH + 6);
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  HOTEL — multi-story, awning, lit windows
+    // ═══════════════════════════════════════════════════
+    _drawHotel(ctx, sx, sy, bw, bh) {
+        this._drawBuildingBase(ctx, sx, sy, bw, bh, '#d8e8e8');
+        const roofH = Math.max(8, bh * 0.15);
+        this._drawRoofBlock(ctx, sx, sy, bw, roofH, '#40a0b0');
+        // Multi-story windows
+        this._drawWindowGrid(ctx, sx, sy, bw, bh, sy + roofH + 6, 5, 5, 9, 9, '#2a5a6a');
+        // Entrance awning
+        const awnX = sx + bw / 2 - 12, awnY = sy + bh - 18;
+        ctx.fillStyle = '#40a0b0';
+        ctx.beginPath();
+        ctx.moveTo(awnX, awnY); ctx.lineTo(awnX + 24, awnY);
+        ctx.lineTo(awnX + 26, awnY + 4); ctx.lineTo(awnX - 2, awnY + 4);
+        ctx.closePath(); ctx.fill();
+        // Glass door
+        ctx.fillStyle = '#2a4a5a'; ctx.fillRect(sx + bw / 2 - 6, sy + bh - 14, 14, 16);
+        ctx.fillStyle = 'rgba(140,200,230,0.6)'; ctx.fillRect(sx + bw / 2 - 5, sy + bh - 13, 5.5, 15);
+        ctx.fillRect(sx + bw / 2 + 1.5, sy + bh - 13, 5.5, 15);
+        // Hotel sign
+        ctx.fillStyle = '#2a6a7a'; ctx.fillRect(sx + bw / 2 - 12, sy + roofH + 1, 26, 7);
+        ctx.fillStyle = '#ffe860'; ctx.font = 'bold 5px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('HOTEL', sx + bw / 2 + 1, sy + roofH + 5);
+        // Star rating
+        ctx.fillStyle = '#ffe040'; ctx.font = '4px sans-serif';
+        ctx.fillText('★★★', sx + bw / 2 + 1, sy + roofH + 11);
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  CHURCH — steeple, cross, stained glass
+    // ═══════════════════════════════════════════════════
+    _drawChurch(ctx, sx, sy, bw, bh) {
+        this._drawBuildingBase(ctx, sx, sy, bw, bh, '#e8e4de');
+        const roofH = Math.max(10, bh * 0.25);
+        // Peaked roof
+        ctx.fillStyle = '#8a8078';
+        ctx.beginPath();
+        ctx.moveTo(sx, sy + roofH + 2);
+        ctx.lineTo(sx + bw / 2 + 2, sy - 2);
+        ctx.lineTo(sx + bw + 4, sy + roofH + 2);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.beginPath();
+        ctx.moveTo(sx, sy + roofH + 2);
+        ctx.lineTo(sx + bw / 2 + 2, sy - 2);
+        ctx.lineTo(sx + bw / 2 + 2, sy + roofH + 2);
+        ctx.closePath(); ctx.fill();
+        // Steeple
+        ctx.fillStyle = '#a09890';
+        ctx.fillRect(sx + bw / 2 - 3, sy - 14, 8, 16);
+        ctx.fillStyle = '#8a8078';
+        ctx.beginPath();
+        ctx.moveTo(sx + bw / 2 - 4, sy - 14);
+        ctx.lineTo(sx + bw / 2 + 1, sy - 22);
+        ctx.lineTo(sx + bw / 2 + 6, sy - 14);
+        ctx.closePath(); ctx.fill();
+        // Cross on top
+        ctx.fillStyle = '#c8b840';
+        ctx.fillRect(sx + bw / 2, sy - 28, 2, 8);
+        ctx.fillRect(sx + bw / 2 - 2, sy - 26, 6, 2);
+        // Arched door
+        const archCx = sx + bw / 2 + 1;
+        ctx.fillStyle = '#5a4a38';
+        ctx.beginPath();
+        ctx.arc(archCx, sy + bh - 8, 6, Math.PI, 0);
+        ctx.lineTo(archCx + 6, sy + bh + 2);
+        ctx.lineTo(archCx - 6, sy + bh + 2);
+        ctx.closePath(); ctx.fill();
+        // Stained glass window (round)
+        ctx.fillStyle = '#6050a0';
+        ctx.beginPath(); ctx.arc(archCx, sy + roofH + 10, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#e0a040';
+        ctx.beginPath(); ctx.arc(archCx, sy + roofH + 10, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#4a3a70'; ctx.lineWidth = 0.5;
+        ctx.beginPath(); ctx.moveTo(archCx - 5, sy + roofH + 10); ctx.lineTo(archCx + 5, sy + roofH + 10); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(archCx, sy + roofH + 5); ctx.lineTo(archCx, sy + roofH + 15); ctx.stroke();
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  BANK — columns, vault door, gold trim
+    // ═══════════════════════════════════════════════════
+    _drawBank(ctx, sx, sy, bw, bh) {
+        this._drawBuildingBase(ctx, sx, sy, bw, bh, '#e8e2cc');
+        const roofH = Math.max(10, bh * 0.22);
+        // Classical pediment roof
+        ctx.fillStyle = '#c8a830';
+        ctx.fillRect(sx, sy, bw + 4, roofH * 0.6);
+        ctx.beginPath();
+        ctx.moveTo(sx - 2, sy + roofH * 0.6);
+        ctx.lineTo(sx + bw / 2 + 2, sy - 4);
+        ctx.lineTo(sx + bw + 6, sy + roofH * 0.6);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.beginPath();
+        ctx.moveTo(sx - 2, sy + roofH * 0.6);
+        ctx.lineTo(sx + bw / 2 + 2, sy - 4);
+        ctx.lineTo(sx + bw / 2 + 2, sy + roofH * 0.6);
+        ctx.closePath(); ctx.fill();
+        // Columns
+        const cols = Math.max(2, Math.floor(bw / 18));
+        const colGap = bw / (cols + 1);
+        for (let i = 1; i <= cols; i++) {
+            const cx = sx + i * colGap;
+            ctx.fillStyle = '#e8e0d0';
+            ctx.fillRect(cx - 2, sy + roofH * 0.6, 5, bh - roofH * 0.6);
+            // Column highlight
+            ctx.fillStyle = 'rgba(255,255,255,0.2)';
+            ctx.fillRect(cx - 1, sy + roofH * 0.6, 2, bh - roofH * 0.6);
+            // Capital
+            ctx.fillStyle = '#c8a830';
+            ctx.fillRect(cx - 3, sy + roofH * 0.6, 7, 3);
+            // Base
+            ctx.fillRect(cx - 3, sy + bh - 2, 7, 3);
+        }
+        // Vault door
+        ctx.fillStyle = '#666'; ctx.fillRect(sx + bw / 2 - 5, sy + bh - 14, 12, 16);
+        ctx.fillStyle = '#888'; ctx.fillRect(sx + bw / 2 - 4, sy + bh - 13, 10, 15);
+        ctx.strokeStyle = '#555'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(sx + bw / 2 + 1, sy + bh - 6, 3, 0, Math.PI * 2); ctx.stroke();
+        // BANK sign
+        ctx.fillStyle = '#2a2a1a'; ctx.fillRect(sx + bw / 2 - 10, sy + roofH, 22, 7);
+        ctx.fillStyle = '#d0a830'; ctx.font = 'bold 5px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('BANK', sx + bw / 2 + 1, sy + roofH + 4);
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  FACTORY — smokestacks, corrugated walls
+    // ═══════════════════════════════════════════════════
+    _drawFactory(ctx, sx, sy, bw, bh) {
+        this._drawBuildingBase(ctx, sx, sy, bw, bh, '#c8c0b8');
+        const roofH = Math.max(8, bh * 0.15);
+        this._drawRoofBlock(ctx, sx, sy, bw, roofH, '#908078');
+        // Corrugated wall texture
+        ctx.strokeStyle = 'rgba(0,0,0,0.06)'; ctx.lineWidth = 0.5;
+        for (let lx = sx + 6; lx < sx + bw; lx += 4) {
+            ctx.beginPath(); ctx.moveTo(lx, sy + roofH); ctx.lineTo(lx, sy + bh); ctx.stroke();
+        }
+        // Loading dock door
+        ctx.fillStyle = '#7a7060';
+        ctx.fillRect(sx + 6, sy + bh * 0.5, bw * 0.35, bh * 0.48);
+        ctx.strokeStyle = '#5a5040'; ctx.lineWidth = 0.5;
+        for (let ly = sy + bh * 0.5; ly < sy + bh * 0.96; ly += 4) {
+            ctx.beginPath(); ctx.moveTo(sx + 6, ly); ctx.lineTo(sx + 6 + bw * 0.35, ly); ctx.stroke();
+        }
+        // Small windows high up
+        this._drawWindowGrid(ctx, sx + bw * 0.4, sy, bw * 0.6, bh * 0.5, sy + roofH + 4, 8, 5, 14, 10, '#5a5048');
+        // Smokestacks
+        const stacks = Math.min(2, Math.max(1, Math.floor(bw / 40)));
+        for (let i = 0; i < stacks; i++) {
+            const scx = sx + bw * 0.7 + i * 14;
+            ctx.fillStyle = '#888'; ctx.fillRect(scx, sy - 16, 6, 18);
+            ctx.fillStyle = '#777'; ctx.fillRect(scx - 1, sy - 16, 8, 3);
+            // Smoke puffs
+            ctx.fillStyle = 'rgba(180,180,180,0.3)';
+            ctx.beginPath(); ctx.arc(scx + 3, sy - 20, 4, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(scx + 6, sy - 24, 3, 0, Math.PI * 2); ctx.fill();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  RESTAURANT — awning, table, menu board
+    // ═══════════════════════════════════════════════════
+    _drawRestaurant(ctx, sx, sy, bw, bh) {
+        this._drawBuildingBase(ctx, sx, sy, bw, bh, '#f0e0c8');
+        const roofH = Math.max(8, bh * 0.2);
+        this._drawRoofBlock(ctx, sx, sy, bw, roofH, '#d88040');
+        this._drawWindowGrid(ctx, sx, sy, bw, bh, sy + roofH + 8, 7, 6, 12, 12, '#6a4a2a');
+        this._drawDoorDetail(ctx, sx + bw / 2 + 1, sy + bh + 2, 8, 12, '#6a4020');
+        // Striped awning over door
+        const awnY = sy + bh - 16;
+        for (let stripe = 0; stripe < 6; stripe++) {
+            ctx.fillStyle = stripe % 2 === 0 ? '#d04030' : '#fff';
+            ctx.fillRect(sx + bw / 2 - 14 + stripe * 5, awnY, 5, 5);
+        }
+        ctx.fillStyle = 'rgba(0,0,0,0.1)';
+        ctx.fillRect(sx + bw / 2 - 14, awnY + 3, 30, 2);
+        // Restaurant sign
+        ctx.fillStyle = '#6a2010'; ctx.fillRect(sx + bw / 2 - 14, sy + roofH + 1, 30, 8);
+        ctx.fillStyle = '#ffe860'; ctx.font = 'bold 5px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('RESTAURANT', sx + bw / 2 + 1, sy + roofH + 5);
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  GYM — bold sign, muscle motif
+    // ═══════════════════════════════════════════════════
+    _drawGym(ctx, sx, sy, bw, bh) {
+        this._drawBuildingBase(ctx, sx, sy, bw, bh, '#e8d8d8');
+        const roofH = Math.max(8, bh * 0.2);
+        this._drawRoofBlock(ctx, sx, sy, bw, roofH, '#c06080');
+        // Big front window
+        ctx.fillStyle = '#333'; ctx.fillRect(sx + 6, sy + roofH + 8, bw - 12, bh * 0.35);
+        const wg = ctx.createLinearGradient(sx + 7, sy + roofH + 9, sx + bw - 7, sy + roofH + 9 + bh * 0.33);
+        wg.addColorStop(0, 'rgba(140,200,240,0.7)');
+        wg.addColorStop(1, 'rgba(100,160,200,0.6)');
+        ctx.fillStyle = wg; ctx.fillRect(sx + 7, sy + roofH + 9, bw - 14, bh * 0.33);
+        this._drawDoorDetail(ctx, sx + bw / 2 + 1, sy + bh + 2, 9, 12, '#6a3050');
+        // GYM sign
+        ctx.fillStyle = '#1a1a1a'; ctx.fillRect(sx + bw / 2 - 12, sy + roofH + 1, 26, 8);
+        ctx.fillStyle = '#ff4060'; ctx.font = 'bold 6px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('GYM', sx + bw / 2 + 1, sy + roofH + 5);
+        // Dumbbell icon
+        ctx.fillStyle = '#888';
+        const dbY = sy + bh - 10;
+        ctx.fillRect(sx + bw - 18, dbY, 3, 6); ctx.fillRect(sx + bw - 10, dbY, 3, 6);
+        ctx.fillRect(sx + bw - 15, dbY + 2, 8, 2);
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  HOUSE — residential, chimney, garden feel
+    // ═══════════════════════════════════════════════════
+    _drawHouse(ctx, sx, sy, bw, bh) {
+        this._drawBuildingBase(ctx, sx, sy, bw, bh, '#e8d8c0');
+        const roofH = Math.max(10, bh * 0.3);
+        // Peaked roof
+        ctx.fillStyle = '#c0594a';
+        ctx.beginPath();
+        ctx.moveTo(sx, sy + roofH);
+        ctx.lineTo(sx + bw / 2 + 2, sy - 2);
+        ctx.lineTo(sx + bw + 4, sy + roofH);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.beginPath();
+        ctx.moveTo(sx, sy + roofH);
+        ctx.lineTo(sx + bw / 2 + 2, sy - 2);
+        ctx.lineTo(sx + bw / 2 + 2, sy + roofH);
+        ctx.closePath(); ctx.fill();
+        // Chimney
+        ctx.fillStyle = '#9a5a4a';
+        ctx.fillRect(sx + bw * 0.7, sy - 6, 6, 10);
+        ctx.fillStyle = '#8a4a3a'; ctx.fillRect(sx + bw * 0.7 - 1, sy - 6, 8, 2);
+        // Windows
+        this._drawWindowGrid(ctx, sx, sy, bw, bh, sy + roofH + 4, 7, 6, 13, 12, '#5a4a30');
+        // Front door
+        this._drawDoorDetail(ctx, sx + bw / 2 + 1, sy + bh + 2, 8, 12, '#7a5530');
+        // Door step
+        ctx.fillStyle = '#aaa'; ctx.fillRect(sx + bw / 2 - 5, sy + bh + 1, 12, 2);
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  APARTMENT — tall, many windows, balconies
+    // ═══════════════════════════════════════════════════
+    _drawApartment(ctx, sx, sy, bw, bh) {
+        this._drawBuildingBase(ctx, sx, sy, bw, bh, '#d0c8c0');
+        const roofH = Math.max(8, bh * 0.12);
+        this._drawRoofBlock(ctx, sx, sy, bw, roofH, '#7090b8');
+        // Dense window grid
+        this._drawWindowGrid(ctx, sx, sy, bw, bh, sy + roofH + 5, 5, 5, 9, 9, '#3a4a5a');
+        // Balcony lines every other row
+        ctx.strokeStyle = '#8a8a8a'; ctx.lineWidth = 0.7;
+        for (let by = sy + roofH + 14; by < sy + bh - 8; by += 18) {
+            ctx.beginPath(); ctx.moveTo(sx + 4, by); ctx.lineTo(sx + bw - 2, by); ctx.stroke();
+            ctx.fillStyle = 'rgba(0,0,0,0.04)'; ctx.fillRect(sx + 4, by, bw - 6, 3);
+        }
+        // Entrance
+        ctx.fillStyle = '#4a5a6a'; ctx.fillRect(sx + bw / 2 - 5, sy + bh - 12, 12, 14);
+        ctx.fillStyle = 'rgba(140,190,230,0.5)'; ctx.fillRect(sx + bw / 2 - 4, sy + bh - 11, 10, 13);
+        // Building number
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 6px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(Math.floor(sx * 0.1) % 200 + '', sx + bw / 2 + 1, sy + roofH + 2);
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  OFFICE — glass curtain wall, modern
+    // ═══════════════════════════════════════════════════
+    _drawOffice(ctx, sx, sy, bw, bh) {
+        this._drawBuildingBase(ctx, sx, sy, bw, bh, '#d8dce0');
+        const roofH = Math.max(6, bh * 0.1);
+        this._drawRoofBlock(ctx, sx, sy, bw, roofH, '#8898a8');
+        // Glass curtain wall
+        const glassY = sy + roofH + 2;
+        const glassH = bh - roofH - 16;
+        ctx.fillStyle = '#3a4a5a'; ctx.fillRect(sx + 4, glassY, bw - 6, glassH);
+        // Window panes in grid
+        const paneW = 6, paneH = 6, paneGapX = 8, paneGapY = 8;
+        for (let py = glassY + 2; py + paneH < glassY + glassH - 2; py += paneGapY) {
+            for (let px = sx + 6; px + paneW < sx + bw - 4; px += paneGapX) {
+                const pg = ctx.createLinearGradient(px, py, px + paneW, py + paneH);
+                pg.addColorStop(0, 'rgba(160,210,240,0.8)');
+                pg.addColorStop(1, 'rgba(120,170,210,0.6)');
+                ctx.fillStyle = pg; ctx.fillRect(px, py, paneW, paneH);
+                ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(px, py, paneW * 0.3, paneH * 0.3);
+            }
+        }
+        // Revolving door
+        ctx.fillStyle = '#555'; ctx.fillRect(sx + bw / 2 - 6, sy + bh - 12, 14, 14);
+        ctx.fillStyle = 'rgba(140,200,240,0.5)';
+        ctx.beginPath(); ctx.arc(sx + bw / 2 + 1, sy + bh - 5, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#444'; ctx.lineWidth = 0.6;
+        ctx.beginPath();
+        ctx.moveTo(sx + bw / 2 + 1, sy + bh - 10);
+        ctx.lineTo(sx + bw / 2 + 1, sy + bh);
+        ctx.moveTo(sx + bw / 2 - 4, sy + bh - 5);
+        ctx.lineTo(sx + bw / 2 + 6, sy + bh - 5);
+        ctx.stroke();
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  PARK — green area, bench, path
+    // ═══════════════════════════════════════════════════
+    _drawPark(ctx, sx, sy, bw, bh) {
+        // Green base instead of building
+        ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(sx + 5, sy + 5, bw, bh);
+        ctx.fillStyle = '#6ab050'; ctx.fillRect(sx + 2, sy + 2, bw, bh);
+        const grad = ctx.createLinearGradient(sx, sy, sx + bw, sy + bh);
+        grad.addColorStop(0, 'rgba(255,255,255,0.1)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.1)');
+        ctx.fillStyle = grad; ctx.fillRect(sx + 2, sy + 2, bw, bh);
+        ctx.strokeStyle = '#4a8a30'; ctx.lineWidth = 1; ctx.strokeRect(sx + 2, sy + 2, bw, bh);
+        // Winding path
+        ctx.strokeStyle = '#c8b898'; ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(sx + bw / 2, sy + bh + 2);
+        ctx.quadraticCurveTo(sx + bw * 0.3, sy + bh * 0.5, sx + bw * 0.6, sy + bh * 0.2);
+        ctx.stroke();
+        // Mini trees
+        const treePositions = [[0.2, 0.3], [0.7, 0.25], [0.5, 0.65], [0.15, 0.7], [0.8, 0.6]];
+        for (const [tx, ty] of treePositions) {
+            const ttx = sx + bw * tx, tty = sy + bh * ty;
+            ctx.fillStyle = '#4a7a2a'; ctx.beginPath(); ctx.arc(ttx, tty, 5, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#5a9a3a'; ctx.beginPath(); ctx.arc(ttx - 1, tty - 1, 3, 0, Math.PI * 2); ctx.fill();
+        }
+        // Bench
+        ctx.fillStyle = '#8a6a40'; ctx.fillRect(sx + bw * 0.4, sy + bh * 0.8, 12, 3);
+        ctx.fillRect(sx + bw * 0.4, sy + bh * 0.8 + 3, 2, 3);
+        ctx.fillRect(sx + bw * 0.4 + 10, sy + bh * 0.8 + 3, 2, 3);
+        // Fence
+        ctx.strokeStyle = '#8a8a6a'; ctx.lineWidth = 0.5;
+        ctx.strokeRect(sx + 2, sy + 2, bw, bh);
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  GENERIC fallback
+    // ═══════════════════════════════════════════════════
+    _drawGenericBuilding(ctx, sx, sy, bw, bh, type) {
+        const wallColor = BUILDING_COLORS[type] || '#d0c8c0';
+        const roofColor = BUILDING_ROOF_COLORS[type] || '#8a7a6a';
+        this._drawBuildingBase(ctx, sx, sy, bw, bh, wallColor);
+        const roofH = Math.max(8, bh * 0.22);
+        this._drawRoofBlock(ctx, sx, sy, bw, roofH, roofColor);
+        this._drawWindowGrid(ctx, sx, sy, bw, bh, sy + roofH + 8, 6, 5, 11, 11, '#3a3a3a');
+        this._drawDoorDetail(ctx, sx + bw / 2 + 1, sy + bh + 2, 8, 11, '#6a5a40');
+        const icon = BUILDING_ICONS[type];
+        if (icon) {
+            const iconSize = Math.min(bw, bh) * 0.25;
+            ctx.font = `${iconSize}px serif`;
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(icon, sx + bw / 2 + 2, sy + roofH + 6);
         }
     }
 
