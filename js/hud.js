@@ -64,8 +64,26 @@ class HUD {
             }
         }
 
-        // Speed
-        this.speedEl.textContent = Math.floor(taxi.currentDisplaySpeed);
+        // Speed — color-coded with speed limit warning
+        const displaySpeed = Math.floor(taxi.currentDisplaySpeed);
+        this.speedEl.textContent = displaySpeed;
+        const localLimit = hazardManager._getLocalSpeedLimit(taxi);
+        const speedParent = this.speedEl.parentElement;
+        if (displaySpeed > localLimit) {
+            speedParent.style.color = '#ff4444';
+            speedParent.title = `⚠ Speed limit: ${localLimit} km/h`;
+            if (!this._speedWarningEl) {
+                this._speedWarningEl = document.createElement('span');
+                this._speedWarningEl.className = 'speed-limit-warn';
+                speedParent.appendChild(this._speedWarningEl);
+            }
+            this._speedWarningEl.textContent = ` /${localLimit}`;
+            this._speedWarningEl.style.display = '';
+        } else {
+            speedParent.style.color = '';
+            speedParent.title = '';
+            if (this._speedWarningEl) this._speedWarningEl.style.display = 'none';
+        }
 
         // KM
         this.kmEl.textContent = taxi.totalKm.toFixed(1);

@@ -78,6 +78,11 @@ class AudioManager {
         this._playTone([523, 659, 784, 1047], 0.1, 'sine', 0.1);
     }
 
+    playPassengerNearby() {
+        // Gentle double-ping to signal a passenger is in pickup range
+        this._playTone([600, 800], 0.06, 'sine', 0.06);
+    }
+
     _playTone(freqs, noteDuration, type, volume) {
         if (!this.initialized || !this.enabled) return;
         const now = this.ctx.currentTime;

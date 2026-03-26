@@ -80,7 +80,7 @@ class Renderer {
         this._drawSpeedCameras(ctx, cam, hazardMgr);
 
         // Draw passengers
-        this._drawPassengers(ctx, cam, passengerMgr);
+        this._drawPassengers(ctx, cam, passengerMgr, taxi);
 
         // Draw pedestrians
         if (trafficMgr) {
@@ -1472,7 +1472,7 @@ class Renderer {
         }
     }
 
-    _drawPassengers(ctx, cam, passengerMgr) {
+    _drawPassengers(ctx, cam, passengerMgr, taxi) {
         for (const p of passengerMgr.passengers) {
             if (!p.active || p.pickedUp) continue;
             if (!cam.isVisible(p.x - 20, p.y - 30, 40, 40)) continue;
@@ -1480,6 +1480,22 @@ class Renderer {
             const sx = p.x - cam.x;
             const sy = p.y - cam.y;
             const bob = Math.sin(p.bobTimer) * 3;
+
+            // Proximity glow — pulsing green ring when taxi is nearby
+            if (taxi && !taxi.hasPassenger) {
+                const d = Math.hypot(taxi.x - p.x, taxi.y - p.y);
+                if (d < TILE_SIZE * 3) {
+                    const pulse = 0.35 + 0.25 * Math.sin(performance.now() / 300);
+                    const proximity = 1 - d / (TILE_SIZE * 3); // 1=close, 0=edge
+                    ctx.save();
+                    ctx.strokeStyle = `rgba(0,255,120,${pulse * proximity})`;
+                    ctx.lineWidth = 2.5;
+                    ctx.beginPath();
+                    ctx.arc(sx, sy - 2 + bob, 20, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
 
             // VIP glow
             if (p.isVIP) {

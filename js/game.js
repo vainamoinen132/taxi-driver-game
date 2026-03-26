@@ -154,6 +154,10 @@ class Game {
         this.audio.init();
         this.audio.resume();
 
+        // Tutorial — only on first new game (not on load)
+        const tutorialDone = localStorage.getItem('taxi_tutorial_done');
+        this._tutorial = (!loadData && !tutorialDone) ? { step: 0, delay: 3 } : null;
+
         // Start game loop
         this.running = true;
         this.paused = false;
@@ -293,6 +297,41 @@ class Game {
             this._troubleConfirmTimer -= dt;
             if (this._troubleConfirmTimer <= 0) {
                 this._troubleConfirmed = null;
+            }
+        }
+
+        // Passenger proximity audio ping (cooldown-gated)
+        if (!this.taxi.hasPassenger) {
+            this._passengerPingCooldown = (this._passengerPingCooldown || 0) - dt;
+            const nearest = this.passengerMgr.getNearestPassenger(this.taxi.x, this.taxi.y, TILE_SIZE * 3);
+            if (nearest && this._passengerPingCooldown <= 0) {
+                this.audio.playPassengerNearby();
+                this._passengerPingCooldown = 4; // seconds between pings
+            }
+        }
+
+        // First-fare tutorial
+        if (this._tutorial) {
+            this._tutorial.delay -= dt;
+            if (this._tutorial.delay <= 0) {
+                const t = this._tutorial;
+                if (t.step === 0) {
+                    this.hazardMgr.addNotification('🎓 Use W/S to drive, A/D to steer. Find passengers on sidewalks!', 'info');
+                    t.step = 1;
+                } else if (t.step === 1 && !this.taxi.hasPassenger) {
+                    const near = this.passengerMgr.getNearestPassenger(this.taxi.x, this.taxi.y, TILE_SIZE * 4);
+                    if (near) {
+                        this.hazardMgr.addNotification('🎓 Passenger nearby! Slow down and press SPACE to pick them up.', 'info');
+                        t.step = 2;
+                    }
+                } else if (t.step === 2 && this.taxi.hasPassenger) {
+                    this.hazardMgr.addNotification('🎓 Great! Follow the green arrow to the destination.', 'info');
+                    t.step = 3;
+                } else if (t.step === 3 && !this.taxi.hasPassenger && this.taxi.totalFares > 0) {
+                    this.hazardMgr.addNotification('🎓 First fare complete! Press G to navigate, ESC for upgrades. You got this!', 'info');
+                    this._tutorial = null;
+                    localStorage.setItem('taxi_tutorial_done', '1');
+                }
             }
         }
 
@@ -545,6 +584,14 @@ class Game {
             if (e.key === 'Escape') {
                 e.preventDefault();
                 if (this.running) this.togglePause();
+            }
+
+            // Controls overlay — works even when paused
+            if (e.key === '?' || e.key === 'F1') {
+                e.preventDefault();
+                const overlay = document.getElementById('controls-overlay');
+                if (overlay) overlay.classList.toggle('hidden');
+                return;
             }
 
             if (!this.running || this.paused) return;

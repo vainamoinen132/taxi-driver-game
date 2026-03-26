@@ -1184,6 +1184,61 @@ body {
     background: rgba(231,76,60,0.5);
 }
 
+/* Controls overlay */
+#controls-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+.controls-panel {
+    background: rgba(20,20,40,0.95);
+    border: 1px solid rgba(245,197,24,0.3);
+    border-radius: 12px;
+    padding: 20px 28px;
+    max-width: 420px;
+    width: 90%;
+}
+.controls-title {
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: #f5c518;
+    margin-bottom: 12px;
+    text-align: center;
+}
+.controls-title small {
+    color: #888;
+    font-weight: normal;
+    font-size: 0.75rem;
+}
+.controls-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 16px;
+    font-size: 0.85rem;
+    color: #ccc;
+}
+.controls-grid b {
+    color: #f5c518;
+}
+
+/* Speed limit warning */
+.speed-limit-warn {
+    font-size: 0.75em;
+    opacity: 0.7;
+    animation: speed-flash 0.8s ease-in-out infinite;
+}
+@keyframes speed-flash {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+}
+#hud-speed[style*="color: rgb(255, 68, 68)"] {
+    text-shadow: 0 0 8px rgba(255, 68, 68, 0.6);
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

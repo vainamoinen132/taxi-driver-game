@@ -117,7 +117,7 @@
 
         <!-- HUD -->
         <div id="hud">
-            <div id="nav-hint"><b>G</b> Navigate &nbsp; <b>R</b> GPS &nbsp; <b>X</b> Radio &nbsp; <b>./,</b> Stations &nbsp; <b>C</b> Center &nbsp; <b>F</b> Phone &nbsp; <b>M</b> Minimap</div>
+            <div id="nav-hint"><b>G</b> Navigate &nbsp; <b>R</b> GPS &nbsp; <b>X</b> Radio &nbsp; <b>./,</b> Stations &nbsp; <b>C</b> Center &nbsp; <b>F</b> Phone &nbsp; <b>M</b> Minimap &nbsp; <b>?</b> Controls</div>
             <div id="hud-top-left">
                 <div class="hud-item" id="hud-money">💰 $<span>500</span></div>
                 <div class="hud-item" id="hud-fuel">
@@ -217,6 +217,30 @@
 
         <!-- Location Picker -->
         <div id="loc-picker" class="hidden"></div>
+
+        <!-- Controls Overlay -->
+        <div id="controls-overlay" class="hidden">
+            <div class="controls-panel">
+                <div class="controls-title">Controls <small>(? to close)</small></div>
+                <div class="controls-grid">
+                    <div><b>W/S</b> or <b>↑/↓</b></div><div>Accelerate / Brake</div>
+                    <div><b>A/D</b> or <b>←/→</b></div><div>Steer</div>
+                    <div><b>SPACE</b></div><div>Pick up / Drop off passenger</div>
+                    <div><b>E</b></div><div>Interact (park in lot first)</div>
+                    <div><b>F</b></div><div>Phone — app ride orders</div>
+                    <div><b>G</b></div><div>Navigate to location</div>
+                    <div><b>R</b></div><div>Toggle GPS route</div>
+                    <div><b>M</b></div><div>Toggle minimap size</div>
+                    <div><b>X</b></div><div>Radio on/off</div>
+                    <div><b>. / ,</b></div><div>Next / prev station</div>
+                    <div><b>H</b></div><div>Horn</div>
+                    <div><b>N</b></div><div>Sound on/off</div>
+                    <div><b>C</b></div><div>Center camera</div>
+                    <div><b>T</b></div><div>Emergency tow (if totaled)</div>
+                    <div><b>ESC</b></div><div>Pause / Upgrades / Save</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Scripts -->
