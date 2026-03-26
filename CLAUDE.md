@@ -24,8 +24,10 @@ js/
   utils.js              — Shared helpers (math, formatting, tile conversion)
   taxi.js               — Player vehicle: physics, upgrades, fuel, tires, fatigue
   city.js               — Procedural city generation (55x40 tilemap, buildings, districts)
-  camera.js             — Viewport following and culling
+  camera.js             — Viewport following, culling, screen shake
   renderer.js           — Canvas rendering (tiles, buildings, vehicles, weather, HUD, minimap)
+  home-screen.js        — Home screen UI (summary, skills, shop, garage, upgrades)
+  save-manager.js       — Save/load system (localStorage persistence, state restore)
   passenger.js          — Passenger spawning, types, fare calculation, rating
   traffic.js            — NPC cars, buses, pedestrians with road-following AI
   ai-taxi.js            — Rival AI taxi competitors
@@ -33,7 +35,7 @@ js/
   hazards.js            — Speed cameras, traffic lights, fines, notifications
   weather.js            — Rain/fog/clear cycle, day/night, fare multipliers
   challenges.js         — Daily challenge system
-  characters.js         — 5 playable drivers with skills/bonuses/weaknesses
+  characters.js         — 5 playable drivers with skills/bonuses/weaknesses, portrait drawing
   app-orders.js         — Ride-hailing phone orders
   gps.js                — Navigation arrows and route drawing
   police.js             — Police patrol (currently disabled)
@@ -61,7 +63,7 @@ js/
 
 - Police system disabled (was blocking gameplay) — police.js exists but is not used
 - Some shop items defined but not yet implemented in game logic
-- game.js handles too many responsibilities (UI rendering, save/load, fare logic)
+- game.js still handles fare logic and some UI (home screen and save/load extracted)
 - NPC and AI taxi pathfinding code is duplicated between traffic.js and ai-taxi.js
 
 ## Coding Conventions

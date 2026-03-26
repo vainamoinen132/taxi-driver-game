@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(wc -l /c/Users/AnilTurkmayali/Documents/GitHub/taxi-driver-game/js/*.js)"
+      "Bash(wc -l /c/Users/AnilTurkmayali/Documents/GitHub/taxi-driver-game/js/*.js)",
+      "Bash(node -c js/home-screen.js)",
+      "Bash(node -c js/game.js)"
     ]
   }
 }
